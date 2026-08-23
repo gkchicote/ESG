@@ -85,16 +85,18 @@ profiles ──< enrollments >── courses ──< modules ──< lessons ─
 
 ### 0. O catálogo
 
-`src/lib/db/catalog.ts` é a fonte única dos módulos e aulas. Edite o arquivo e
-aplique no banco:
+`src/lib/db/catalog.ts` é a fonte única do curso, dos módulos e das aulas.
+Edite o arquivo e aplique no banco de uma das duas formas:
 
-```bash
-npm run content:sync                  # banco local (PGlite)
-DATABASE_URL=postgres://… npm run content:sync   # banco de produção
-```
+- **Pelo painel** — entre como admin em `/admin` e clique em **Publicar
+  catálogo**. É o caminho para produção, onde o Postgres costuma só ser
+  alcançável de dentro da rede do container.
+- **Pelo terminal** — `npm run content:sync` (ou com `DATABASE_URL=…` na
+  frente, se o banco for alcançável da sua máquina).
 
-O seed só roda quando o banco é criado do zero; depois disso é o `content:sync`
-que publica módulos e aulas novas. Ele casa as linhas pelo **`slug`**: aula que
+O seed só roda quando o banco é criado do zero — e **só no PGlite local**. Num
+deploy com `DATABASE_URL` nada é populado automaticamente: o curso precisa ser
+publicado uma vez pelo painel, e de novo a cada módulo ou aula acrescentada. Ele casa as linhas pelo **`slug`**: aula que
 já existe é atualizada e o progresso dos alunos é preservado; aula que sumiu do
 catálogo é apagada. Renomear o título é seguro — trocar o slug não é.
 
@@ -140,7 +142,16 @@ Copie para `content/pdfs/` e cadastre em `materials.storage_path` com o nome do
 arquivo. O download nunca é servido estaticamente: passa por
 `/api/materials/[id]`, que valida a matrícula antes de entregar o arquivo.
 
-### 3. Criando acessos de aluno
+### 3. Liberando o curso para o aluno
+
+Quem manda no acesso é a matrícula (`enrollments`): sem ela o aluno entra e vê
+"Nenhum curso liberado ainda". Em `/admin`, a coluna **Curso** de cada usuário
+define isso na hora — escolha o curso para liberar, ou "Sem acesso" para tirar.
+
+Tirar o acesso não apaga o progresso: se a matrícula voltar, o aluno retoma
+exatamente de onde parou.
+
+### 4. Criando acessos de aluno
 
 ```bash
 npm run create-user -- --email ana@exemplo.com --nome "Ana Duarte" --senha "trocar123"

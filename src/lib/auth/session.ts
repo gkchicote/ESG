@@ -15,6 +15,13 @@ export async function requireSession(): Promise<SessionPayload> {
   return session;
 }
 
+/** Usa em página ou ação restrita ao admin. */
+export async function requireAdmin(): Promise<SessionPayload> {
+  const session = await requireSession();
+  if (session.role !== "admin") throw new Error("Acesso restrito a administradores.");
+  return session;
+}
+
 export async function createSessionCookie(payload: SessionPayload) {
   const token = await signSession(payload);
   const store = await cookies();
@@ -31,9 +38,4 @@ export async function createSessionCookie(payload: SessionPayload) {
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });
-}
-
-export async function destroySessionCookie() {
-  const store = await cookies();
-  store.delete(SESSION_COOKIE);
 }

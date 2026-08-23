@@ -38,6 +38,15 @@ export function lessonVideo(lesson: LessonSeed): VideoSeed {
   return lesson.video ?? { provider: "file", id: `${lesson.slug}.mp4` };
 }
 
+/** O curso em si. O sync cria a linha em `courses` se ela ainda não existir. */
+export const COURSE = {
+  slug: "ingles-do-zero-a-fluencia",
+  title: "Inglês do Zero à Fluência",
+  description:
+    "Um caminho direto do primeiro contato até conversar com confiança, sem decorar regras soltas.",
+  level: "A1 → B1",
+};
+
 export const CURRICULUM: ModuleSeed[] = [
   {
     slug: "fundamentos-sons-alfabeto",

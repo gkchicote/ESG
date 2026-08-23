@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
+import { BookOpen, ShieldCheck } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
-import { listCourses, listUsers } from "@/lib/db/queries";
+import { countCourseContent, listCourses, listUsers } from "@/lib/db/queries";
 import { formatLastAccess, initials } from "@/lib/format";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +18,10 @@ import {
 import { progressTone } from "@/lib/progress-tone";
 import { cn } from "@/lib/utils";
 import { ChangePasswordDialog } from "./change-password-dialog";
+import { CourseSelect } from "./course-select";
 import { CreateUserDialog } from "./create-user-dialog";
 import { DeleteUserButton } from "./delete-user-button";
+import { PublishCatalogButton } from "./publish-catalog-button";
 
 export const metadata: Metadata = { title: "Usuários" };
 
@@ -27,7 +29,13 @@ export default async function AdminUsersPage() {
   const session = await requireSession();
   if (session.role !== "admin") notFound();
 
-  const [users, courses] = await Promise.all([listUsers(), listCourses()]);
+  const [users, courses, content] = await Promise.all([
+    listUsers(),
+    listCourses(),
+    countCourseContent(),
+  ]);
+
+  const contentByCourse = new Map(content.map((row) => [row.course_id, row]));
 
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 sm:py-14">
@@ -39,12 +47,48 @@ export default async function AdminUsersPage() {
           </p>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Usuários</h1>
           <p className="text-muted-foreground text-[15px]">
-            Crie acessos, altere senhas e gerencie quem pode entrar na plataforma.
+            Crie acessos, libere o curso de cada aluno e gerencie quem entra na plataforma.
           </p>
         </div>
 
         <CreateUserDialog courses={courses} />
       </header>
+
+      {/* Conteúdo publicado ------------------------------------------- */}
+      <section className="mb-8 rounded-xl border p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-1.5">
+            <p className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium tracking-[0.12em] uppercase">
+              <BookOpen className="size-3.5" />
+              Conteúdo
+            </p>
+            {courses.length > 0 ? (
+              <ul className="space-y-1">
+                {courses.map((course) => {
+                  const counts = contentByCourse.get(course.id);
+                  return (
+                    <li key={course.id} className="text-[15px]">
+                      <span className="font-medium">{course.title}</span>
+                      <span className="text-muted-foreground tabular text-sm">
+                        {" · "}
+                        {Number(counts?.modules ?? 0)} módulos · {Number(counts?.lessons ?? 0)} aulas
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-[15px] font-medium">Nenhum curso publicado ainda</p>
+            )}
+            <p className="text-muted-foreground max-w-xl text-sm">
+              Publicar aplica o catálogo do código no banco desta instalação. Use depois de
+              acrescentar módulos ou aulas — o progresso de quem já estuda é preservado.
+            </p>
+          </div>
+
+          <PublishCatalogButton label={courses.length > 0 ? "Publicar catálogo" : "Publicar curso"} />
+        </div>
+      </section>
 
       <div className="overflow-hidden rounded-xl border">
         <div className="overflow-x-auto">
@@ -82,8 +126,12 @@ export default async function AdminUsersPage() {
                     </div>
                   </TableCell>
 
-                  <TableCell className="text-muted-foreground text-sm">
-                    {user.course_title ?? "—"}
+                  <TableCell>
+                    <CourseSelect
+                      userId={user.id}
+                      courseId={user.course_id}
+                      courses={courses}
+                    />
                   </TableCell>
 
                   <TableCell>

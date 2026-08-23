@@ -5,7 +5,7 @@ import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireSession } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
 import {
   countAdmins,
   createInvite,
@@ -14,13 +14,6 @@ import {
   getUserById,
   updateUserPassword,
 } from "@/lib/db/queries";
-
-/** Garante que só um admin autenticado execute as ações desta página. */
-async function requireAdmin() {
-  const session = await requireSession();
-  if (session.role !== "admin") throw new Error("Acesso restrito a administradores.");
-  return session;
-}
 
 export type ActionState = { error?: string; success?: string; link?: string };
 

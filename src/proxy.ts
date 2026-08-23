@@ -23,7 +23,16 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+
+  // Área logada nunca fica em cache. Sem isto, depois de sair a pessoa
+  // reaproveita a página anterior no Recarregar ou no botão Voltar (o
+  // bfcache do Chrome) e parece que ainda está dentro da conta.
+  if (!isPublic) {
+    response.headers.set("Cache-Control", "no-store, max-age=0, must-revalidate");
+  }
+
+  return response;
 }
 
 export const config = {

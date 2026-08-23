@@ -332,6 +332,7 @@ export type AdminUserRow = {
   full_name: string;
   role: "student" | "admin";
   created_at: string;
+  course_id: string | null;
   course_title: string | null;
   percent: number | null;
   last_accessed_at: string | null;
@@ -349,6 +350,7 @@ export function listCourses() {
 export function listUsers() {
   return query<AdminUserRow>(
     `select p.id, p.email, p.full_name, p.role, p.created_at,
+            e.course_id,
             c.title as course_title,
             cp.percent,
             e.last_accessed_at
@@ -358,6 +360,43 @@ export function listUsers() {
        left join course_progress cp
               on cp.course_id = e.course_id and cp.profile_id = e.profile_id
       order by p.created_at desc`,
+  );
+}
+
+/** Quantos módulos e aulas publicados cada curso tem — resumo da página admin. */
+export function countCourseContent() {
+  return query<{ course_id: string; modules: string; lessons: string }>(
+    `select m.course_id,
+            count(distinct m.id) as modules,
+            count(l.id)          as lessons
+       from modules m
+       left join lessons l on l.module_id = m.id and l.is_published
+      where m.is_published
+      group by m.course_id`,
+  );
+}
+
+/**
+ * Define (ou remove) o curso do aluno. É a matrícula que libera o conteúdo:
+ * sem linha em `enrollments`, o app não mostra módulo nenhum.
+ *
+ * Tirar o acesso não apaga `lesson_progress` — se a matrícula voltar, o aluno
+ * retoma exatamente de onde parou.
+ */
+export async function setUserEnrollment(profileId: string, courseId: string | null) {
+  if (!courseId) {
+    await query(`delete from enrollments where profile_id = $1`, [profileId]);
+    return;
+  }
+
+  await query(`delete from enrollments where profile_id = $1 and course_id <> $2`, [
+    profileId,
+    courseId,
+  ]);
+  await query(
+    `insert into enrollments (profile_id, course_id) values ($1, $2)
+     on conflict (profile_id, course_id) do nothing`,
+    [profileId, courseId],
   );
 }
 

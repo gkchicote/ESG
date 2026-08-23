@@ -1,7 +1,6 @@
 "use client";
 
 import { LogOut, User } from "lucide-react";
-import { signOut } from "@/lib/auth/actions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,15 +42,15 @@ export function UserMenu({ name, email }: { name: string; email: string }) {
           Minha conta
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <form action={signOut}>
-          <button type="submit" className="w-full">
-            <DropdownMenuItem asChild>
-              <span className="cursor-pointer">
-                <LogOut className="size-4" />
-                Sair
-              </span>
-            </DropdownMenuItem>
-          </button>
+        {/* Formulário nativo: quem navega é o navegador, no clique. O menu
+            fecha e desmonta logo depois, e a saída acontece do mesmo jeito. */}
+        <form action="/api/logout" method="post">
+          <DropdownMenuItem asChild>
+            <button type="submit" className="w-full cursor-pointer">
+              <LogOut className="size-4" />
+              Sair
+            </button>
+          </DropdownMenuItem>
         </form>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
-import { CURRICULUM, lessonVideo } from "./catalog";
+import { COURSE, CURRICULUM, lessonVideo } from "./catalog";
 
 type Runner = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
@@ -36,12 +36,7 @@ export async function seed(db: Runner) {
     await db.query(
       `insert into courses (title, slug, description, level)
        values ($1, $2, $3, $4) returning id`,
-      [
-        "Inglês do Zero à Fluência",
-        "ingles-do-zero-a-fluencia",
-        "Um caminho direto do primeiro contato até conversar com confiança, sem decorar regras soltas.",
-        "A1 → B1",
-      ],
+      [COURSE.title, COURSE.slug, COURSE.description, COURSE.level],
     )
   ).rows as { id: string }[];
 

@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getProfileByEmail } from "@/lib/db/queries";
-import { createSessionCookie, destroySessionCookie } from "./session";
+import { createSessionCookie } from "./session";
 
 const LoginSchema = z.object({
   email: z.string().trim().min(1, "Informe seu e-mail.").email("E-mail inválido."),
@@ -47,9 +47,4 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
 
   const next = String(formData.get("next") ?? "");
   redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/inicio");
-}
-
-export async function signOut() {
-  await destroySessionCookie();
-  redirect("/login");
 }

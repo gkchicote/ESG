@@ -1,5 +1,5 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession, verifySession, type SessionPayload } from "./jwt";
 
@@ -18,10 +18,16 @@ export async function requireSession(): Promise<SessionPayload> {
 export async function createSessionCookie(payload: SessionPayload) {
   const token = await signSession(payload);
   const store = await cookies();
+  const hdrs = await headers();
+  // Sem reverse proxy na frente, a conexão pode ser HTTP puro mesmo em produção
+  // (ex.: deploy direto na VPS). Um proxy que termina TLS (Nginx, Cloudflare
+  // Tunnel) seta x-forwarded-proto: https; sem ele, o cookie Secure seria
+  // descartado pelo navegador e a sessão se perderia a cada navegação.
+  const secure = hdrs.get("x-forwarded-proto") === "https";
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure,
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });

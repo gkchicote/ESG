@@ -1,0 +1,23 @@
+node_modules
+.next
+.data
+*.tsbuildinfo
+next-env.d.ts
+
+.git
+.gitignore
+.DS_Store
+
+.env
+.env.*
+!.env.example
+
+# Conteúdo real é montado via volume — não precisa ir para o build context.
+content/videos/*
+!content/videos/.gitkeep
+
+npm-debug.log*
+
+README.md
+AGENTS.md
+CLAUDE.md

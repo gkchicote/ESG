@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      # Materiais reais do curso — troque os arquivos direto na VPS,
+      # sem rebuildar a imagem.
+      - ./content/pdfs:/app/content/pdfs
+      - ./content/videos:/app/content/videos

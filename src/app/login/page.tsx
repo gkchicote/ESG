@@ -55,7 +55,11 @@ export default function LoginPage() {
 
       {/* Painel de marca */}
       <aside className="bg-brand text-brand-foreground relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-end">
-        <BackgroundVideo src="/video/hero-bg.mp4" poster="/video/hero-poster.jpg" />
+        <BackgroundVideo
+          src="/video/hero-bg.mp4"
+          poster="/video/hero-poster.jpg"
+          loadOn="(min-width: 1024px)"
+        />
         <div aria-hidden className="bg-brand/70 absolute inset-0" />
         <div
           aria-hidden

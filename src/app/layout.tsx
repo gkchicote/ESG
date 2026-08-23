@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -22,6 +22,17 @@ export const metadata: Metadata = {
     template: "%s · Fluently",
   },
   description: "Sua trilha de inglês, do primeiro contato à conversa fluente.",
+};
+
+/**
+ * Pinta a barra do navegador no celular com o fundo do tema — sem isto o
+ * Chrome/Android desenha uma faixa clara acima da página no modo escuro.
+ */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

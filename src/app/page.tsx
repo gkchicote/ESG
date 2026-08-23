@@ -22,7 +22,11 @@ export default function LandingPage() {
     /* A landing é sempre escura: o vídeo é o fundo, então o tema claro do
        usuário não se aplica aqui. Cores fixas, sem tokens de tema. */
     <main className="relative flex min-h-svh flex-col overflow-hidden bg-neutral-950 text-white">
-      <BackgroundVideo src="/video/hero-bg.mp4" poster="/video/hero-poster.jpg" />
+      <BackgroundVideo
+        src="/video/hero-bg.mp4"
+        mobileSrc="/video/hero-bg-mobile.mp4"
+        poster="/video/hero-poster.jpg"
+      />
 
       {/* Escurecimento para o texto ficar legível sobre qualquer frame */}
       <div

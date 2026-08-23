@@ -71,8 +71,8 @@ export const CURRICULUM: ModuleSeed[] = [
     description: "A história de Jack Hannaford, em oito aulas.",
     lessons: [
       { slug: "jack-hannaford-01", title: "Aula 01 - Jack Hannaford", description: "", seconds: 1802, video: { provider: "youtube", id: "zdXmqqPBXEQ" } },
-      { slug: "jack-hannaford-02", title: "Aula 02 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
-      { slug: "jack-hannaford-03", title: "Aula 03 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
+      { slug: "jack-hannaford-02", title: "Aula 02 - Jack Hannaford", description: "", seconds: 1917, video: { provider: "youtube", id: "B-zhym9qGXs" } },
+      { slug: "jack-hannaford-03", title: "Aula 03 - Jack Hannaford", description: "", seconds: 1113, video: { provider: "youtube", id: "jwxYEis-38c" } },
       { slug: "jack-hannaford-04", title: "Aula 04 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
       { slug: "jack-hannaford-05", title: "Aula 05 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
       { slug: "jack-hannaford-06", title: "Aula 06 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },

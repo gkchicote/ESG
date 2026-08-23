@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/app/logo";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 import { TopNav } from "@/components/app/top-nav";
 import { UserMenu } from "@/components/app/user-menu";
 import { requireSession } from "@/lib/auth/session";
@@ -15,7 +16,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <Logo />
           </Link>
           <TopNav className="hidden sm:flex" isAdmin={session.role === "admin"} />
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1.5">
+            <ThemeToggle />
             <UserMenu name={session.name} email={session.email} />
           </div>
         </div>

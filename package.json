@@ -11,7 +11,8 @@
     "create-user": "tsx scripts/create-user.ts",
     "db:reset": "node scripts/db-reset.mjs",
     "content:pdfs": "tsx scripts/make-sample-pdfs.ts",
-    "content:videos": "tsx scripts/make-sample-videos.ts"
+    "content:videos": "tsx scripts/make-sample-videos.ts",
+    "content:sync": "tsx scripts/sync-curriculum.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.6",

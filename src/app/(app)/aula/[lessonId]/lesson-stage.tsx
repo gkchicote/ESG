@@ -7,11 +7,14 @@ import { ArrowLeft, ArrowRight, Check, CircleCheck, Loader2 } from "lucide-react
 import { toast } from "sonner";
 import { saveLessonProgress, toggleLessonCompleted } from "@/app/actions/progress";
 import { Button } from "@/components/ui/button";
+import type { VideoSource } from "@/lib/video";
 import { cn } from "@/lib/utils";
+import { YouTubePlayer, type PlayerHandle } from "./youtube-player";
 
 const SAVE_EVERY_SECONDS = 10;
 const RESUME_AFTER_SECONDS = 10;
 const COMPLETE_AT = 0.9; // 90% assistido conclui a aula
+const TICK_MS = 1000;
 
 type Neighbour = { href: string; title: string } | null;
 
@@ -24,14 +27,15 @@ export function LessonStage({
   next,
 }: {
   lessonId: string;
-  source: { kind: "video"; url: string } | { kind: "embed"; url: string } | { kind: "missing" };
+  source: VideoSource;
   startAt: number;
   completed: boolean;
   previous: Neighbour;
   next: Neighbour;
 }) {
   const router = useRouter();
-  const videoRef = useRef<HTMLVideoElement>(null);
+  // Um só ponteiro para o player em uso: <video> nativo ou YouTube.
+  const playerRef = useRef<PlayerHandle | null>(null);
   const lastSavedAt = useRef(0);
   const completedRef = useRef(initialCompleted);
   const [completed, setCompleted] = useState(initialCompleted);
@@ -56,60 +60,65 @@ export function LessonStage({
   );
 
   /* Retoma no ponto salvo -------------------------------------------- */
-  // O <video> é renderizado no servidor e começa a carregar antes da
-  // hidratação: quando o React assume, o "loadedmetadata" pode já ter
-  // passado. Por isso checamos readyState em vez de confiar só no evento.
+  // Depende da duração, que só existe depois que o player carrega os
+  // metadados — por isso a tentativa acontece dentro do tick, e não num
+  // evento que pode já ter passado quando o React assume a página.
   const resumedRef = useRef(false);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || startAt < RESUME_AFTER_SECONDS) return;
-
-    const applyResume = () => {
+  const tryResume = useCallback(
+    (player: PlayerHandle, duration: number) => {
       if (resumedRef.current) return;
-      if (!video.duration || startAt >= video.duration - 5) return; // estava no fim: recomeça
       resumedRef.current = true;
-      video.currentTime = startAt;
+      if (startAt < RESUME_AFTER_SECONDS || startAt >= duration - 5) return; // fim: recomeça
+      player.seek(startAt);
       lastSavedAt.current = startAt;
       toast("Retomando de onde você parou", {
         description: formatClock(startAt),
         action: {
           label: "Do início",
           onClick: () => {
-            video.currentTime = 0;
-            void video.play();
+            player.seek(0);
+            player.play();
           },
         },
       });
-    };
-
-    if (video.readyState >= 1) applyResume();
-    else video.addEventListener("loadedmetadata", applyResume, { once: true });
-
-    return () => video.removeEventListener("loadedmetadata", applyResume);
-  }, [startAt]);
+    },
+    [startAt],
+  );
 
   /* Salva progresso a cada 10s de reprodução -------------------------- */
-  const handleTimeUpdate = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || !video.duration) return;
+  const tick = useCallback(() => {
+    const player = playerRef.current;
+    if (!player) return;
 
-    const now = video.currentTime;
+    const duration = player.duration();
+    if (!duration) return;
+
+    tryResume(player, duration);
+
+    const now = player.currentTime();
     if (Math.abs(now - lastSavedAt.current) >= SAVE_EVERY_SECONDS) {
       lastSavedAt.current = now;
       void saveLessonProgress(lessonId, now);
     }
 
-    if (now / video.duration >= COMPLETE_AT) markCompleted(now);
-  }, [lessonId, markCompleted]);
+    if (now / duration >= COMPLETE_AT) markCompleted(now);
+  }, [lessonId, markCompleted, tryResume]);
+
+  useEffect(() => {
+    if (source.kind === "missing" || source.kind === "embed") return;
+    const id = window.setInterval(tick, TICK_MS);
+    return () => window.clearInterval(id);
+  }, [tick, source.kind]);
 
   /* Ao sair da página, grava a posição exata ------------------------- */
   // sendBeacon sobrevive ao unload; uma Server Action seria cancelada.
   useEffect(() => {
     const flush = () => {
-      const video = videoRef.current;
-      if (!video || !(video.currentTime > 0)) return;
-      const body = JSON.stringify({ lessonId, seconds: Math.round(video.currentTime) });
+      const player = playerRef.current;
+      const seconds = player?.currentTime() ?? 0;
+      if (!(seconds > 0)) return;
+      const body = JSON.stringify({ lessonId, seconds: Math.round(seconds) });
       const blob = new Blob([body], { type: "application/json" });
       if (!navigator.sendBeacon("/api/progress", blob)) {
         void fetch("/api/progress", { method: "POST", body, keepalive: true });
@@ -126,6 +135,28 @@ export function LessonStage({
       flush();
     };
   }, [lessonId]);
+
+  /* Registro dos players --------------------------------------------- */
+  const attachVideo = useCallback((el: HTMLVideoElement | null) => {
+    playerRef.current = el
+      ? {
+          currentTime: () => el.currentTime,
+          duration: () => el.duration || 0,
+          seek: (seconds) => {
+            el.currentTime = seconds;
+          },
+          play: () => void el.play(),
+        }
+      : null;
+  }, []);
+
+  const attachYouTube = useCallback((handle: PlayerHandle) => {
+    playerRef.current = handle;
+  }, []);
+
+  const onPlayerEnded = useCallback(() => {
+    markCompleted(playerRef.current?.duration() ?? 0);
+  }, [markCompleted]);
 
   const onToggleComplete = () => {
     const value = !completed;
@@ -146,15 +177,23 @@ export function LessonStage({
       <div className="bg-foreground/95 relative aspect-video w-full overflow-hidden rounded-xl">
         {source.kind === "video" && (
           <video
-            ref={videoRef}
+            ref={attachVideo}
             src={source.url}
             controls
             controlsList="nodownload"
             preload="metadata"
             playsInline
-            onTimeUpdate={handleTimeUpdate}
-            onEnded={() => markCompleted(videoRef.current?.duration ?? 0)}
+            onTimeUpdate={tick}
+            onEnded={onPlayerEnded}
             className="size-full"
+          />
+        )}
+
+        {source.kind === "youtube" && (
+          <YouTubePlayer
+            videoId={source.videoId}
+            onReady={attachYouTube}
+            onEnded={onPlayerEnded}
           />
         )}
 

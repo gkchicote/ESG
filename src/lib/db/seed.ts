@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
-import { CURRICULUM } from "./catalog";
+import { CURRICULUM, lessonVideo } from "./catalog";
 
 type Runner = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
@@ -50,24 +50,27 @@ export async function seed(db: Runner) {
   for (const [mi, mod] of CURRICULUM.entries()) {
     const [m] = (
       await db.query(
-        `insert into modules (course_id, title, description, position)
-         values ($1, $2, $3, $4) returning id`,
-        [course.id, mod.title, mod.description, mi + 1],
+        `insert into modules (course_id, slug, title, description, position)
+         values ($1, $2, $3, $4, $5) returning id`,
+        [course.id, mod.slug, mod.title, mod.description, mi + 1],
       )
     ).rows as { id: string }[];
 
     for (const [li, lesson] of mod.lessons.entries()) {
+      const video = lessonVideo(lesson);
       const [l] = (
         await db.query(
-          `insert into lessons (module_id, title, description, position,
+          `insert into lessons (module_id, slug, title, description, position,
                                 video_provider, video_id, duration_seconds, is_free_preview)
-           values ($1, $2, $3, $4, 'file', $5, $6, $7) returning id`,
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
           [
             m.id,
+            lesson.slug,
             lesson.title,
-            lesson.description,
+            lesson.description || null,
             li + 1,
-            `${lesson.slug}.mp4`,
+            video.provider,
+            video.id,
             lesson.seconds,
             mi === 0 && li === 0,
           ],

@@ -83,10 +83,26 @@ profiles ──< enrollments >── courses ──< modules ──< lessons ─
 
 ## Colocando o seu conteúdo
 
+### 0. O catálogo
+
+`src/lib/db/catalog.ts` é a fonte única dos módulos e aulas. Edite o arquivo e
+aplique no banco:
+
+```bash
+npm run content:sync                  # banco local (PGlite)
+DATABASE_URL=postgres://… npm run content:sync   # banco de produção
+```
+
+O seed só roda quando o banco é criado do zero; depois disso é o `content:sync`
+que publica módulos e aulas novas. Ele casa as linhas pelo **`slug`**: aula que
+já existe é atualizada e o progresso dos alunos é preservado; aula que sumiu do
+catálogo é apagada. Renomear o título é seguro — trocar o slug não é.
+
 ### 1. Vídeos
 
 Copie os MP4 para `content/videos/` e cadastre a aula com
-`video_provider = 'file'` e `video_id = 'nome-do-arquivo.mp4'`.
+`video_provider = 'file'` e `video_id = 'nome-do-arquivo.mp4'`. No catálogo isso
+é o padrão: sem o campo `video`, a aula procura `<slug>.mp4`.
 
 Outros provedores já suportados (`src/lib/video.ts`):
 
@@ -96,6 +112,27 @@ Outros provedores já suportados (`src/lib/video.ts`):
 | `url` | URL http(s) direta de um MP4/HLS |
 | `bunny` | GUID do vídeo (requer `BUNNY_LIBRARY_ID` no `.env`) |
 | `youtube` / `vimeo` | ID do vídeo |
+
+**YouTube.** Basta o ID de 11 caracteres do link
+(`https://youtu.be/zdXmqqPBXEQ` → `zdXmqqPBXEQ`):
+
+```ts
+{ slug: "jack-hannaford-01", title: "Aula 01 - Jack Hannaford",
+  description: "", seconds: 1802,
+  video: { provider: "youtube", id: "zdXmqqPBXEQ" } }
+```
+
+Vale para vídeo **não listado** — o embed depende do ID, não de o vídeo aparecer
+na busca. Só não pode ser *privado*, e no YouTube Studio a incorporação precisa
+estar liberada (Detalhes → Mostrar mais → *Permitir incorporação*).
+
+O player usa a IFrame API do YouTube, então essas aulas se comportam como as de
+MP4: salvam a posição a cada 10 s, retomam de onde o aluno parou e se marcam
+como concluídas aos 90%. Preencha `seconds` com a duração real do vídeo — é o
+que a lista de aulas exibe; aula com `0` aparece como `—`.
+
+Aula já publicada cujo vídeo ainda não subiu: `id: null`. Ela entra na lista e
+o palco mostra "O vídeo desta aula ainda não foi publicado".
 
 ### 2. PDFs
 
@@ -143,6 +180,7 @@ Use `--curso <slug>` para escolher outro e `--papel admin` para um administrador
 | `npm run db:reset` | Apaga o banco local (recriado no próximo `dev`) |
 | `npm run content:pdfs` | Regera os PDFs de demonstração |
 | `npm run content:videos` | Regera as videoaulas de demonstração (ffmpeg) |
+| `npm run content:sync` | Aplica o catálogo (módulos e aulas) num banco existente |
 
 ---
 

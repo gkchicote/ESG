@@ -29,6 +29,9 @@ create table if not exists courses (
 create table if not exists modules (
   id           uuid primary key default gen_random_uuid(),
   course_id    uuid not null references courses(id) on delete cascade,
+  -- Identificador estável do módulo no catálogo (src/lib/db/catalog.ts).
+  -- É por ele que `npm run content:sync` reconhece a linha e a atualiza.
+  slug         text,
   title        text not null,
   description  text,
   position     int  not null,
@@ -39,6 +42,8 @@ create table if not exists modules (
 create table if not exists lessons (
   id               uuid primary key default gen_random_uuid(),
   module_id        uuid not null references modules(id) on delete cascade,
+  -- Mesmo papel do slug do módulo: chave estável para o sync do catálogo.
+  slug             text,
   title            text not null,
   description      text,
   position         int  not null,
@@ -115,6 +120,14 @@ create index if not exists materials_module_idx  on materials (module_id);
 create index if not exists progress_profile_idx  on lesson_progress (profile_id);
 create index if not exists enrollments_prof_idx  on enrollments (profile_id);
 create index if not exists invites_token_idx     on invites (token);
+
+-- Bancos criados antes dos slugs: o `create table if not exists` acima não
+-- adiciona colunas novas, então o ALTER cobre esse caso. Idempotente.
+alter table modules add column if not exists slug text;
+alter table lessons add column if not exists slug text;
+
+create unique index if not exists modules_course_slug_idx on modules (course_id, slug);
+create unique index if not exists lessons_module_slug_idx on lessons (module_id, slug);
 
 -- ---------- View de progresso agregado ------------------------------
 create or replace view course_progress as

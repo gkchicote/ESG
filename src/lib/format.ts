@@ -1,5 +1,8 @@
-/** 3725 -> "1h 02min" | 612 -> "10min" | 45 -> "45s" */
+/** 3725 -> "1h 02min" | 612 -> "10min" | 45 -> "45s" | 0 -> "—" */
 export function formatDuration(totalSeconds: number): string {
+  // Aula publicada sem duração cadastrada (vídeo ainda por vir): "0s" soaria
+  // como erro, então o traço marca "a definir".
+  if (!(totalSeconds > 0)) return "—";
   const s = Math.max(0, Math.round(totalSeconds));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);

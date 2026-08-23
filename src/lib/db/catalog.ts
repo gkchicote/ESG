@@ -1,27 +1,46 @@
 /**
- * Catálogo do curso de demonstração.
+ * Catálogo do curso — fonte única do currículo.
  *
- * Fonte única usada pelo seed do banco e pelos geradores de conteúdo de
- * exemplo (scripts/make-sample-*.ts). Ao trocar pelo seu material real,
- * este arquivo deixa de ser necessário.
+ * Usado pelo seed do banco (primeiro boot), pelo `npm run content:sync`
+ * (aplica este arquivo num banco que já existe) e pelos geradores de
+ * conteúdo de exemplo (scripts/make-sample-*.ts).
+ *
+ * Cada módulo e cada aula tem um `slug` estável: é por ele que o sync
+ * reconhece a linha no banco. Renomear o título é seguro; trocar o slug
+ * apaga a aula antiga (e o progresso dela) e cria outra no lugar.
  */
+
+/** Onde o vídeo está hospedado. Sem `video`, assume MP4 local `<slug>.mp4`. */
+export type VideoSeed = {
+  provider: "file" | "url" | "youtube" | "vimeo" | "bunny";
+  /** null = aula publicada, vídeo ainda não subiu (o player mostra o aviso). */
+  id: string | null;
+};
 
 export type LessonSeed = {
   slug: string;
   title: string;
   description: string;
   seconds: number;
+  video?: VideoSeed;
   materials?: { title: string; file: string }[];
 };
 
 export type ModuleSeed = {
+  slug: string;
   title: string;
   description: string;
   lessons: LessonSeed[];
 };
 
+/** Resolve o `video` de uma aula, aplicando o padrão de arquivo local. */
+export function lessonVideo(lesson: LessonSeed): VideoSeed {
+  return lesson.video ?? { provider: "file", id: `${lesson.slug}.mp4` };
+}
+
 export const CURRICULUM: ModuleSeed[] = [
   {
+    slug: "fundamentos-sons-alfabeto",
     title: "Fundamentos: Sons e Alfabeto",
     description: "A base da pronúncia que a escola tradicional pula. Comece por aqui.",
     lessons: [
@@ -32,16 +51,28 @@ export const CURRICULUM: ModuleSeed[] = [
     ],
   },
   {
-    title: "Verb To Be e Apresentações",
-    description: "Falar sobre si mesmo com naturalidade na primeira conversa.",
+    // ---------------------------------------------------------------
+    //  Módulo 02 — vídeos no YouTube (não listados).
+    //  Para publicar as aulas que faltam: cole o ID de 11 caracteres do
+    //  link (https://youtu.be/<ID>) em `video.id` e rode:
+    //      npm run content:sync
+    // ---------------------------------------------------------------
+    slug: "jack-hannaford",
+    title: "Jack Hannaford",
+    description: "A história de Jack Hannaford, em oito aulas.",
     lessons: [
-      { slug: "to-be-estrutura", title: "I am, you are, he is — a estrutura", description: "O verbo mais usado do inglês, destrinchado.", seconds: 40, materials: [{ title: "Quadro de Conjugação — To Be", file: "to-be-conjugacao.pdf" }] },
-      { slug: "to-be-perguntas", title: "Perguntas e negativas com To Be", description: "Are you...? / I'm not... — inversão e contrações.", seconds: 30 },
-      { slug: "apresentar-se", title: "Apresentando-se: nome, profissão e origem", description: "Diálogo modelo completo com shadowing.", seconds: 34, materials: [{ title: "Diálogos para Shadowing", file: "dialogos-shadowing.pdf" }] },
-      { slug: "pratica-frases", title: "Prática guiada: 20 frases sobre você", description: "Monte seu roteiro pessoal de apresentação.", seconds: 44 },
+      { slug: "jack-hannaford-01", title: "Aula 01 - Jack Hannaford", description: "", seconds: 1802, video: { provider: "youtube", id: "zdXmqqPBXEQ" } },
+      { slug: "jack-hannaford-02", title: "Aula 02 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
+      { slug: "jack-hannaford-03", title: "Aula 03 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
+      { slug: "jack-hannaford-04", title: "Aula 04 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
+      { slug: "jack-hannaford-05", title: "Aula 05 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
+      { slug: "jack-hannaford-06", title: "Aula 06 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
+      { slug: "jack-hannaford-07", title: "Aula 07 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
+      { slug: "jack-hannaford-08", title: "Aula 08 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
     ],
   },
   {
+    slug: "present-simple",
     title: "Present Simple no dia a dia",
     description: "Rotina, hábitos e fatos — o tempo verbal que você mais vai usar.",
     lessons: [
@@ -52,6 +83,7 @@ export const CURRICULUM: ModuleSeed[] = [
     ],
   },
   {
+    slug: "vocabulario-trabalho-viagem",
     title: "Vocabulário Essencial: Trabalho e Viagem",
     description: "As 300 palavras que resolvem 80% das situações reais.",
     lessons: [
@@ -61,6 +93,7 @@ export const CURRICULUM: ModuleSeed[] = [
     ],
   },
   {
+    slug: "listening-conversacao",
     title: "Listening e Conversação",
     description: "Treinar o ouvido para a velocidade real do inglês falado.",
     lessons: [

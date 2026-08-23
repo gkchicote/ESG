@@ -91,6 +91,22 @@ create table if not exists lesson_progress (
   unique (profile_id, lesson_id)
 );
 
+-- ---------- Convites -------------------------------------------------
+-- Admin gera o link (sem definir senha); quem recebe preenche nome + senha
+-- e o próprio convite cria o acesso — o admin nunca vê a senha do usuário.
+create table if not exists invites (
+  id         uuid primary key default gen_random_uuid(),
+  token      text not null unique,
+  email      text not null,
+  full_name  text,
+  role       text not null default 'student' check (role in ('student', 'admin')),
+  course_id  uuid references courses(id) on delete set null,
+  created_by uuid not null references profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  used_at    timestamptz
+);
+
 -- ---------- Índices -------------------------------------------------
 create index if not exists modules_course_idx    on modules (course_id, position);
 create index if not exists lessons_module_idx    on lessons (module_id, position);
@@ -98,6 +114,7 @@ create index if not exists materials_lesson_idx  on materials (lesson_id);
 create index if not exists materials_module_idx  on materials (module_id);
 create index if not exists progress_profile_idx  on lesson_progress (profile_id);
 create index if not exists enrollments_prof_idx  on enrollments (profile_id);
+create index if not exists invites_token_idx     on invites (token);
 
 -- ---------- View de progresso agregado ------------------------------
 create or replace view course_progress as

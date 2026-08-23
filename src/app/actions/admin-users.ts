@@ -1,12 +1,14 @@
 "use server";
 
 import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import {
   countAdmins,
-  createUserWithEnrollment,
+  createInvite,
   deleteUser,
   emailExists,
   getUserById,
@@ -20,23 +22,30 @@ async function requireAdmin() {
   return session;
 }
 
-export type ActionState = { error?: string; success?: string };
+export type ActionState = { error?: string; success?: string; link?: string };
 
-const CreateUserSchema = z.object({
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
+
+const CreateInviteSchema = z.object({
   email: z.string().trim().min(1, "Informe o e-mail.").email("E-mail inválido."),
-  fullName: z.string().trim().min(2, "Informe o nome completo."),
-  password: z.string().min(6, "A senha precisa ter pelo menos 6 caracteres."),
+  fullName: z.string().trim().optional(),
   role: z.enum(["student", "admin"]),
   courseId: z.string().uuid().optional().or(z.literal("")),
 });
 
-export async function createUser(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin();
+/**
+ * Gera um link de convite em vez de criar a senha diretamente — o admin
+ * nunca chega a ver a senha, quem preenche é o próprio convidado.
+ */
+export async function createUserInvite(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await requireAdmin();
 
-  const parsed = CreateUserSchema.safeParse({
+  const parsed = CreateInviteSchema.safeParse({
     email: formData.get("email"),
     fullName: formData.get("fullName"),
-    password: formData.get("password"),
     role: formData.get("role") || "student",
     courseId: formData.get("courseId") || "",
   });
@@ -49,17 +58,24 @@ export async function createUser(_prev: ActionState, formData: FormData): Promis
     return { error: "Já existe um usuário com este e-mail." };
   }
 
-  const passwordHash = await bcrypt.hash(parsed.data.password, 10);
-  await createUserWithEnrollment({
+  const token = randomBytes(24).toString("base64url");
+  await createInvite({
+    token,
     email: parsed.data.email,
-    fullName: parsed.data.fullName,
-    passwordHash,
+    fullName: parsed.data.fullName?.trim() || null,
     role: parsed.data.role,
     courseId: parsed.data.courseId || null,
+    createdBy: session.sub,
+    expiresAt: new Date(Date.now() + INVITE_TTL_MS),
   });
 
+  const hdrs = await headers();
+  const proto = hdrs.get("x-forwarded-proto") ?? "http";
+  const host = hdrs.get("host");
+  const link = `${proto}://${host}/convite/${token}`;
+
   revalidatePath("/admin");
-  return { success: `Acesso criado para ${parsed.data.email}.` };
+  return { success: `Convite gerado para ${parsed.data.email}.`, link };
 }
 
 const ChangePasswordSchema = z.object({

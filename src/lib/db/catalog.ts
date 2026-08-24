@@ -61,23 +61,26 @@ export const CURRICULUM: ModuleSeed[] = [
   },
   {
     // ---------------------------------------------------------------
-    //  Módulo 02 — vídeos no YouTube (não listados).
-    //  Para publicar as aulas que faltam: cole o ID de 11 caracteres do
-    //  link (https://youtu.be/<ID>) em `video.id` e rode:
-    //      npm run content:sync
+    //  Módulo 02 — vídeo próprio, hospedado no VPS (não no YouTube).
+    //  Para publicar cada aula:
+    //    1. copie o MP4 para content/videos/<slug>.mp4 (local e no VPS,
+    //       na pasta mapeada pelo volume do docker-compose)
+    //    2. preencha `seconds` com a duração real
+    //    3. rode `npm run content:sync` (ou clique em "Publicar catálogo"
+    //       em /admin)
     // ---------------------------------------------------------------
     slug: "jack-hannaford",
     title: "Jack Hannaford",
     description: "A história de Jack Hannaford, em oito aulas.",
     lessons: [
-      { slug: "jack-hannaford-01", title: "Aula 01 - Jack Hannaford", description: "", seconds: 1802, video: { provider: "youtube", id: "zdXmqqPBXEQ" } },
-      { slug: "jack-hannaford-02", title: "Aula 02 - Jack Hannaford", description: "", seconds: 1917, video: { provider: "youtube", id: "B-zhym9qGXs" } },
-      { slug: "jack-hannaford-03", title: "Aula 03 - Jack Hannaford", description: "", seconds: 1113, video: { provider: "youtube", id: "jwxYEis-38c" } },
-      { slug: "jack-hannaford-04", title: "Aula 04 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
-      { slug: "jack-hannaford-05", title: "Aula 05 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
-      { slug: "jack-hannaford-06", title: "Aula 06 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
-      { slug: "jack-hannaford-07", title: "Aula 07 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
-      { slug: "jack-hannaford-08", title: "Aula 08 - Jack Hannaford", description: "", seconds: 0, video: { provider: "youtube", id: null } },
+      { slug: "jack-hannaford-01", title: "Aula 01 - Jack Hannaford", description: "", seconds: 1802 },
+      { slug: "jack-hannaford-02", title: "Aula 02 - Jack Hannaford", description: "", seconds: 1917 },
+      { slug: "jack-hannaford-03", title: "Aula 03 - Jack Hannaford", description: "", seconds: 1113 },
+      { slug: "jack-hannaford-04", title: "Aula 04 - Jack Hannaford", description: "", seconds: 1408 },
+      { slug: "jack-hannaford-05", title: "Aula 05 - Jack Hannaford", description: "", seconds: 1066 },
+      { slug: "jack-hannaford-06", title: "Aula 06 - Jack Hannaford", description: "", seconds: 1288 },
+      { slug: "jack-hannaford-07", title: "Aula 07 - Jack Hannaford", description: "", seconds: 1771 },
+      { slug: "jack-hannaford-08", title: "Aula 08 - Jack Hannaford", description: "", seconds: 974 },
     ],
   },
   {

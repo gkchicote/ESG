@@ -29,8 +29,14 @@ export type SyncSummary = {
 
 type Log = (line: string) => void;
 
-/** Colunas de slug: bancos criados antes desta versão não as têm. */
+/**
+ * Aplica em qualquer banco (dev ou produção) as mudanças de schema que
+ * `db/schema.sql` sozinho não cobre — ele só roda no primeiro boot do PGlite,
+ * nunca contra um Postgres apontado por DATABASE_URL. É por isso que este
+ * sync também assume o papel de migração incremental.
+ */
 async function ensureSchema() {
+  // Colunas de slug: bancos criados antes desta versão não as têm.
   await query(`alter table modules add column if not exists slug text`);
   await query(`alter table lessons add column if not exists slug text`);
   await query(
@@ -38,6 +44,14 @@ async function ensureSchema() {
   );
   await query(
     `create unique index if not exists lessons_module_slug_idx on lessons (module_id, slug)`,
+  );
+
+  // Provedores de vídeo aceitos: recria a checagem com o valor novo.
+  // drop+add é idempotente — não falha se já tiver sido aplicado.
+  await query(`alter table lessons drop constraint if exists lessons_video_provider_check`);
+  await query(
+    `alter table lessons add constraint lessons_video_provider_check
+       check (video_provider in ('file', 'r2', 'url', 'bunny', 'youtube', 'vimeo', 'drive'))`,
   );
 }
 

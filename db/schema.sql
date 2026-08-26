@@ -48,10 +48,11 @@ create table if not exists lessons (
   description      text,
   position         int  not null,
   -- 'file' = arquivo local em content/videos (dev)
+  -- 'r2'   = chave do objeto no bucket privado do Cloudflare R2 (produção)
   -- 'url'  = link http(s) direto (mp4/hls)
-  -- 'bunny' | 'youtube' | 'vimeo' = id no provider
+  -- 'bunny' | 'youtube' | 'vimeo' | 'drive' = id no provider
   video_provider   text not null default 'file'
-                   check (video_provider in ('file', 'url', 'bunny', 'youtube', 'vimeo')),
+                   check (video_provider in ('file', 'r2', 'url', 'bunny', 'youtube', 'vimeo', 'drive')),
   video_id         text,
   duration_seconds int  not null default 0,
   is_published     boolean not null default true,
@@ -128,6 +129,12 @@ alter table lessons add column if not exists slug text;
 
 create unique index if not exists modules_course_slug_idx on modules (course_id, slug);
 create unique index if not exists lessons_module_slug_idx on lessons (module_id, slug);
+
+-- Bancos criados antes dos providers 'drive' e 'r2': recria a checagem com os
+-- valores novos. drop+add é idempotente — não falha se já tiver sido aplicado.
+alter table lessons drop constraint if exists lessons_video_provider_check;
+alter table lessons add constraint lessons_video_provider_check
+  check (video_provider in ('file', 'r2', 'url', 'bunny', 'youtube', 'vimeo', 'drive'));
 
 -- ---------- View de progresso agregado ------------------------------
 create or replace view course_progress as

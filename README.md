@@ -37,7 +37,7 @@ curso de demonstração (5 módulos, 18 aulas, 10 PDFs).
 | UI | Tailwind CSS v4 + shadcn/ui (Radix) + Lucide |
 | Banco | PostgreSQL — **PGlite** embutido em dev, Postgres/Supabase em produção |
 | Autenticação | Sessão própria: bcrypt + JWT (jose) em cookie `httpOnly` |
-| Vídeo | Arquivo local com streaming por `Range`; pronto para Bunny/YouTube/Vimeo |
+| Vídeo | Cloudflare R2 (bucket privado, URL assinada); arquivo local com `Range` em dev |
 
 ### Por que sessão própria em vez do Supabase Auth
 
@@ -102,18 +102,50 @@ catálogo é apagada. Renomear o título é seguro — trocar o slug não é.
 
 ### 1. Vídeos
 
-Copie os MP4 para `content/videos/` e cadastre a aula com
-`video_provider = 'file'` e `video_id = 'nome-do-arquivo.mp4'`. No catálogo isso
-é o padrão: sem o campo `video`, a aula procura `<slug>.mp4`.
+**Em produção o vídeo vem do Cloudflare R2** (veja abaixo). Em desenvolvimento
+dá para trabalhar com o arquivo em disco: copie o MP4 para `content/videos/` e
+cadastre a aula com `video_provider = 'file'` e
+`video_id = 'nome-do-arquivo.mp4'`. No catálogo isso é o padrão: sem o campo
+`video`, a aula procura `<slug>.mp4`.
 
-Outros provedores já suportados (`src/lib/video.ts`):
+Provedores suportados (`src/lib/video.ts`):
 
 | `video_provider` | `video_id` |
 | --- | --- |
+| `r2` | chave do objeto no bucket (ex.: `F-MODULO03/M03V20 - The Endless Tale 01.mp4`) |
 | `file` | nome do arquivo em `content/videos/` |
 | `url` | URL http(s) direta de um MP4/HLS |
 | `bunny` | GUID do vídeo (requer `BUNNY_LIBRARY_ID` no `.env`) |
-| `youtube` / `vimeo` | ID do vídeo |
+| `youtube` / `vimeo` / `drive` | ID do vídeo |
+
+**Cloudflare R2.** É onde as videoaulas moram. O bucket é **privado**: nada nele
+abre sem assinatura. Suba o MP4 pelo painel do R2 e cadastre a aula com a chave
+exata do objeto — com espaços, maiúsculas e a pasta do módulo, igualzinho ao que
+aparece na listagem:
+
+```ts
+{ slug: "the-endless-tale-01", title: "Aula 01 - The Endless Tale",
+  description: "", seconds: 1354,
+  video: r2("F-MODULO03/M03V20 - The Endless Tale 01.mp4") }
+```
+
+O caminho de entrega: o player aponta para `/api/video/[lessonId]`, a rota
+confere a matrícula do aluno, assina uma URL de 6 horas (`src/lib/r2.ts`, SigV4
+feito à mão — sem o SDK da AWS) e devolve um `302`. O MP4 então viaja do
+Cloudflare direto para o aluno, sem passar pela banda do servidor, e o segredo
+nunca chega ao navegador. Como é um `<video>` nativo, essas aulas têm o pacote
+completo: retomar de onde parou, arrastar a linha do tempo e conclusão
+automática aos 90%.
+
+Preencha as quatro variáveis `R2_*` do `.env.example` (as chaves saem de
+**R2 → Manage API Tokens**; basta permissão de leitura). Sem elas, aulas com
+`provider: "r2"` respondem `503`.
+
+Para descobrir a duração real de um vídeo já no bucket, sem baixá-lo:
+
+```bash
+ffmpeg -i "<url assinada>"   # leia o campo Duration
+```
 
 **YouTube.** Basta o ID de 11 caracteres do link
 (`https://youtu.be/zdXmqqPBXEQ` → `zdXmqqPBXEQ`):
@@ -135,6 +167,26 @@ que a lista de aulas exibe; aula com `0` aparece como `—`.
 
 Aula já publicada cujo vídeo ainda não subiu: `id: null`. Ela entra na lista e
 o palco mostra "O vídeo desta aula ainda não foi publicado".
+
+**Google Drive.** Faça upload do MP4, mude o compartilhamento para "Qualquer
+pessoa com o link" (leitor) e pegue o ID do link
+(`https://drive.google.com/file/d/<ID>/view` → `<ID>`):
+
+```ts
+{ slug: "jack-hannaford-01", title: "Aula 01 - Jack Hannaford",
+  description: "", seconds: 1802,
+  video: { provider: "drive", id: "SEU_ID_AQUI" } }
+```
+
+**Evite usar em produção.** Na prática o Drive tem o mesmo problema do YouTube:
+sinaliza arquivos automaticamente como "suspeitos" e trava o acesso a "só o
+proprietário", mesmo com o compartilhamento certo — sem aviso prévio, e sem
+relação com direitos autorais de fato. Fora isso, não expõe API de progresso
+(essas aulas caem no embed simples, sem retomar de onde parou nem concluir
+sozinhas aos 90%) e ainda impõe cota diária de download por arquivo — com
+muitos alunos acessando ao mesmo tempo, a aula pode parar de abrir para todo
+mundo. Prefira sempre `file` (MP4 no seu próprio servidor); este provider fica
+disponível só para quem tiver conteúdo que comprovadamente não seja sinalizado.
 
 ### 2. PDFs
 
@@ -169,9 +221,9 @@ Use `--curso <slug>` para escolher outro e `--papel admin` para um administrador
    query muda.
 2. **Sessão** — defina `SESSION_SECRET` (`openssl rand -base64 32`). Sem isso,
    um segredo de desenvolvimento é usado.
-3. **Vídeo** — suba os MP4 para o Bunny Stream (ou Cloudflare Stream), troque
-   `video_provider` para `bunny` e preencha `BUNNY_LIBRARY_ID`. Serve HLS
-   adaptativo e evita expor o arquivo original.
+3. **Vídeo** — suba os MP4 para o bucket do Cloudflare R2 e preencha as quatro
+   variáveis `R2_*`. O bucket fica privado e a saída de dados do R2 não é
+   cobrada, então o número de alunos não mexe na conta.
 4. **Deploy** — Vercel. `content/pdfs` cabe no repositório; se os materiais
    crescerem, migre para o Supabase Storage e troque a leitura de disco em
    `src/app/api/materials/[id]/route.ts` por uma signed URL (há um comentário

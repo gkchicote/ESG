@@ -9,17 +9,27 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import ffmpeg from "ffmpeg-static";
-import { CURRICULUM } from "../src/lib/db/catalog";
+import { CURRICULUM, lessonVideo } from "../src/lib/db/catalog";
 
 const OUT = path.join(process.cwd(), "content", "videos");
 
 fs.mkdirSync(OUT, { recursive: true });
 
+/**
+ * Só as aulas que realmente leem de content/videos. As hospedadas fora (hoje
+ * todas, no R2) não têm arquivo local para gerar — e, como `seconds` guarda a
+ * duração real, gerar mesmo assim renderizaria horas de padrão de teste à toa.
+ */
+const targets = CURRICULUM.map((module) => ({
+  ...module,
+  lessons: module.lessons.filter((l) => lessonVideo(l).provider === "file"),
+}));
+
 const manifest: Record<string, { file: string; seconds: number }> = {};
 let done = 0;
-const total = CURRICULUM.reduce((n, m) => n + m.lessons.length, 0);
+const total = targets.reduce((n, m) => n + m.lessons.length, 0);
 
-for (const [mi, module] of CURRICULUM.entries()) {
+for (const [mi, module] of targets.entries()) {
   for (const [li, lesson] of module.lessons.entries()) {
     const file = `${lesson.slug}.mp4`;
     const target = path.join(OUT, file);

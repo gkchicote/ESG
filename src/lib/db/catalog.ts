@@ -61,19 +61,12 @@ export const COURSE = {
 
 export const CURRICULUM: ModuleSeed[] = [
   {
-    slug: "fundamentos-sons-alfabeto",
-    title: "Fundamentos: Sons e Alfabeto",
-    description: "A base da pronúncia que a escola tradicional pula. Comece por aqui.",
-    lessons: [
-      { slug: "boas-vindas", title: "Boas-vindas e como estudar neste curso", description: "Como a plataforma funciona, quanto tempo estudar por dia e o que esperar de cada módulo.", seconds: 24, materials: [{ title: "Guia de Estudos — Semana 1", file: "guia-de-estudos.pdf" }] },
-      { slug: "alfabeto", title: "O alfabeto e o som das letras", description: "Soletrar nomes, e-mails e endereços sem travar.", seconds: 32, materials: [{ title: "Tabela do Alfabeto Fonético", file: "alfabeto-fonetico.pdf" }] },
-      { slug: "vogais", title: "Vogais curtas x vogais longas", description: "A diferença entre ship e sheep — e por que ela importa.", seconds: 28 },
-      { slug: "som-th", title: "Os sons do TH", description: "Treino guiado para o som que não existe em português.", seconds: 36, materials: [{ title: "Exercícios de Pronúncia — TH", file: "exercicios-th.pdf" }] },
-    ],
-  },
-  {
     // ---------------------------------------------------------------
-    //  Módulos 02 e 03 — vídeo próprio, no bucket privado do Cloudflare R2.
+    //  Todo o vídeo do curso mora no bucket privado do Cloudflare R2, na
+    //  pasta do módulo (F-MODULO02, F-MODULO03, ...). Os nomes das pastas
+    //  seguem a numeração original da gravação, não a posição do módulo
+    //  aqui — renomear o objeto no R2 quebraria a aula, então eles ficam
+    //  como estão.
     //
     //  Antes disso o YouTube e o Google Drive bloquearam os arquivos por
     //  conta própria (sinalizados como "suspeitos"), e servir do VPS
@@ -113,37 +106,6 @@ export const CURRICULUM: ModuleSeed[] = [
       { slug: "the-endless-tale-05", title: "Aula 05 - The Endless Tale", description: "", seconds: 1379, video: r2("F-MODULO03/M03V24 - The Endless Tale 05.mp4") },
       { slug: "the-endless-tale-06", title: "Aula 06 - The Endless Tale", description: "", seconds: 1155, video: r2("F-MODULO03/M03V25 - The Endless Tale 06.mp4") },
       { slug: "the-endless-tale-07", title: "Aula 07 - The Endless Tale", description: "", seconds: 1107, video: r2("F-MODULO03/M03V26 - The Endless Tale 07.mp4") },
-    ],
-  },
-  {
-    slug: "present-simple",
-    title: "Present Simple no dia a dia",
-    description: "Rotina, hábitos e fatos — o tempo verbal que você mais vai usar.",
-    lessons: [
-      { slug: "present-simple", title: "Estrutura do Present Simple", description: "Afirmativa, negativa e o temido -s da terceira pessoa.", seconds: 33, materials: [{ title: "Resumo Visual — Present Simple", file: "present-simple.pdf" }] },
-      { slug: "do-does", title: "Do e Does em perguntas", description: "Como montar perguntas que soam naturais.", seconds: 29 },
-      { slug: "adverbios", title: "Advérbios de frequência", description: "Always, usually, sometimes, never — e onde encaixá-los na frase.", seconds: 26 },
-      { slug: "rotina", title: "Descrevendo sua rotina completa", description: "Do café da manhã ao fim do expediente, em inglês.", seconds: 42, materials: [{ title: "Vocabulário de Rotina", file: "vocabulario-rotina.pdf" }] },
-    ],
-  },
-  {
-    slug: "vocabulario-trabalho-viagem",
-    title: "Vocabulário Essencial: Trabalho e Viagem",
-    description: "As 300 palavras que resolvem 80% das situações reais.",
-    lessons: [
-      { slug: "aeroporto-hotel", title: "No aeroporto e no hotel", description: "Check-in, bagagem, reserva e pedidos comuns.", seconds: 36, materials: [{ title: "Frases de Sobrevivência — Viagem", file: "frases-viagem.pdf" }] },
-      { slug: "reunioes-emails", title: "Reuniões e e-mails de trabalho", description: "Vocabulário corporativo sem formalidade excessiva.", seconds: 40 },
-      { slug: "small-talk", title: "Small talk: o que falar nos primeiros 2 minutos", description: "Clima, fim de semana, trânsito — e como sair da conversa.", seconds: 28 },
-    ],
-  },
-  {
-    slug: "listening-conversacao",
-    title: "Listening e Conversação",
-    description: "Treinar o ouvido para a velocidade real do inglês falado.",
-    lessons: [
-      { slug: "connected-speech", title: "Connected speech: por que você não entende nativos", description: "Wanna, gonna, gotta e o encadeamento das palavras.", seconds: 34, materials: [{ title: "Transcrições Comentadas", file: "transcricoes.pdf" }] },
-      { slug: "treino-escuta", title: "Treino de escuta com áudio real", description: "Três trechos autênticos, do mais lento ao mais rápido.", seconds: 46 },
-      { slug: "primeira-conversa", title: "Sua primeira conversa de 5 minutos", description: "Roteiro prático para destravar a fala.", seconds: 38, materials: [{ title: "Roteiro de Conversação", file: "roteiro-conversacao.pdf" }] },
     ],
   },
 ];

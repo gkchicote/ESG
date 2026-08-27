@@ -55,7 +55,7 @@ devolvida, mesmo com o ID em mãos.
 db/schema.sql              Schema Postgres (roda igual em PGlite e Supabase)
 content/videos/            MP4 das aulas  (fora do Git)
 content/pdfs/              Materiais em PDF
-content/materials/         Anexos e áudios por aula (content/materials/<slug-da-aula>/)
+content/materials/         Anexos/áudio com storage "file" (content/materials/<slug-da-aula>/)
 src/app/login/             Tela de login
 src/app/(app)/inicio/      Dashboard
 src/app/(app)/modulos/     Módulos em accordion
@@ -191,26 +191,47 @@ disponível só para quem tiver conteúdo que comprovadamente não seja sinaliza
 
 ### 2. Anexos e áudio das aulas
 
-Os arquivos ficam em `content/materials/<slug-da-aula>/` e são declarados na
-aula, dentro de `src/lib/db/catalog.ts`:
+Declarados na aula, dentro de `src/lib/db/catalog.ts`, com um `storage` por
+item — mesma ideia do `video_provider` da aula:
 
 ```ts
-materials: [{ title: "Texto da aula", file: "materials/jack-hannaford-01/texto.pdf", type: "pdf" }],
-audios:    [{ voice: "Jake", file: "materials/jack-hannaford-01/audio-jake.mp3" }],
+materials: [{ title: "Texto da aula", file: "materials/jack-hannaford-01/texto.pdf", type: "pdf" }],  // storage: "file" (padrão)
+audios:    [{ voice: "Jake", file: "F-MODULO02/Módulo 02/Aula 01/AUDIO Jack Hannaford 01 Jake.mp3", storage: "r2" }],
 ```
 
-`file` é o caminho relativo a `content/` — um nome solto, sem barra, continua
-sendo lido de `content/pdfs/`. Rode `npm run content:sync` (ou clique em
-"Publicar catálogo" em `/admin`) para gravar em `materials`; o tamanho de cada
-arquivo é lido do disco na hora do sync e aparece na tela.
+- **`storage: "file"`** (padrão) — `file` é o caminho relativo a `content/`; um
+  nome solto, sem barra, continua sendo lido de `content/pdfs/`. Serve para
+  anexo pequeno que não vale a pena hospedar fora do repositório.
+- **`storage: "r2"`** — `file` é a chave completa do objeto no bucket privado
+  (a mesma ideia do vídeo). Uso recomendado para os áudios e PDFs de módulos
+  reais: evita depender do disco do servidor (o volume do Docker só existe se
+  alguém colocar o arquivo lá) e não engorda o repositório Git.
+
+  **Cuidado com acentos:** um arquivo enviado a partir de um Mac é salvo em
+  disco com os nomes em **NFD** (o "ó" vira "o" + acento combinante — bytes
+  diferentes de um "ó" comum digitado num editor, mesmo parecendo idêntico na
+  tela). A chave no R2 herda essa codificação. Se a chave em `catalog.ts` for
+  digitada à mão em vez de copiada, normalize com `.normalize("NFD")` antes de
+  montá-la — senão a assinatura bate com um objeto que não existe e a API
+  devolve 404 mesmo com o nome "certo" aparecendo no log. `jackHannaford()`
+  em `catalog.ts` faz isso; é o padrão a seguir para qualquer pasta nova vinda
+  de um Mac.
+
+Rode `npm run content:sync` (ou clique em "Publicar catálogo" em `/admin`) para
+gravar em `materials`. O tamanho de cada arquivo é lido do disco (`file`) ou de
+uma listagem do bucket (`r2`, uma chamada por pasta) na hora do sync, e aparece
+na tela; fica `null` se o arquivo ainda não estiver no lugar — não é erro
+bloqueante.
 
 `materials` vira a lista de download em **Material da aula**; `audios` vira o
 player de **Áudio da aula**, com um botão por voz — é a mesma gravação lida por
 narradores diferentes, e trocar de voz no meio não interrompe a reprodução.
 
-Nada é servido estaticamente: tudo passa por `/api/materials/[id]`, que valida a
-matrícula antes de entregar o arquivo e responde a `Range` (o player de áudio
-precisa disso para arrastar a linha do tempo, e o Safari para tocar).
+Nada é servido estaticamente: tudo passa por `/api/materials/[id]`, que valida
+a matrícula antes de entregar o arquivo. No provider `file`, o streaming
+implementa `Range` na mão; no `r2`, é um 302 para uma URL assinada de vida
+curta (o navegador reemite o `Range` na URL de destino). O player de áudio
+precisa disso para arrastar a linha do tempo, e o Safari para sequer tocar.
 
 ### 3. Liberando o curso para o aluno
 
@@ -242,12 +263,12 @@ Use `--curso <slug>` para escolher outro e `--papel admin` para um administrador
 3. **Vídeo** — suba os MP4 para o bucket do Cloudflare R2 e preencha as quatro
    variáveis `R2_*`. O bucket fica privado e a saída de dados do R2 não é
    cobrada, então o número de alunos não mexe na conta.
-4. **Deploy** — Vercel. `content/pdfs` e `content/materials` cabem no
-   repositório (dezenas de MB, contra os GB do vídeo); se os materiais
-   crescerem, migre para o Supabase Storage ou para o próprio R2 e troque a
-   leitura de disco em `src/app/api/materials/[id]/route.ts` por uma signed URL
-   (há um comentário no arquivo indicando o ponto exato). No deploy com Docker,
-   `content/materials` é montado como volume, igual a `content/pdfs`.
+4. **Deploy** — Vercel. `content/pdfs` e o que estiver em `content/materials`
+   com `storage: "file"` cabem no repositório; para anexos maiores (áudio,
+   PDFs pesados), prefira `storage: "r2"` — sobe uma vez para o mesmo bucket
+   do vídeo e nenhum arquivo depende do disco do servidor ou do volume do
+   Docker. `content/materials` continua montado como volume (igual a
+   `content/pdfs`) para quem preferir `storage: "file"`.
 
 ---
 

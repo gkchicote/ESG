@@ -66,6 +66,10 @@ create table if not exists materials (
   lesson_id    uuid references lessons(id) on delete cascade,
   module_id    uuid references modules(id) on delete cascade,
   title        text not null,
+  -- 'file' = arquivo local em content/ (dev, ou VPS com volume montado)
+  -- 'r2'   = chave do objeto no bucket privado do Cloudflare R2, na mesma
+  --          pasta do vídeo da aula — evita depender do disco do servidor.
+  storage_provider text not null default 'file' check (storage_provider in ('file', 'r2')),
   storage_path text not null,
   file_type    text not null default 'pdf' check (file_type in ('pdf', 'zip', 'audio', 'link')),
   file_size    bigint,
@@ -135,6 +139,12 @@ create unique index if not exists lessons_module_slug_idx on lessons (module_id,
 alter table lessons drop constraint if exists lessons_video_provider_check;
 alter table lessons add constraint lessons_video_provider_check
   check (video_provider in ('file', 'r2', 'url', 'bunny', 'youtube', 'vimeo', 'drive'));
+
+-- Bancos criados antes do storage_provider de materials: idem, coluna nova.
+alter table materials add column if not exists storage_provider text not null default 'file';
+alter table materials drop constraint if exists materials_storage_provider_check;
+alter table materials add constraint materials_storage_provider_check
+  check (storage_provider in ('file', 'r2'));
 
 -- ---------- View de progresso agregado ------------------------------
 create or replace view course_progress as

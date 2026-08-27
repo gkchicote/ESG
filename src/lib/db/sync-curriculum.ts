@@ -1,5 +1,5 @@
 import { query, queryOne } from "./driver";
-import { contentFileSize } from "../content-files";
+import { contentFileSize, r2FileSizes } from "../content-files";
 import { COURSE, CURRICULUM, lessonMaterials, lessonVideo } from "./catalog";
 
 /**
@@ -52,6 +52,16 @@ async function ensureSchema() {
     `alter table lessons add constraint lessons_video_provider_check
        check (video_provider in ('file', 'r2', 'url', 'bunny', 'youtube', 'vimeo', 'drive'))`,
   );
+
+  // Coluna de provedor de materiais: bancos criados antes desta versão não a têm.
+  await query(
+    `alter table materials add column if not exists storage_provider text not null default 'file'`,
+  );
+  await query(`alter table materials drop constraint if exists materials_storage_provider_check`);
+  await query(
+    `alter table materials add constraint materials_storage_provider_check
+       check (storage_provider in ('file', 'r2'))`,
+  );
 }
 
 /**
@@ -90,6 +100,13 @@ export async function syncCurriculum(
   { courseSlug = COURSE.slug, log }: { courseSlug?: string; log?: Log } = {},
 ): Promise<SyncSummary> {
   await ensureSchema();
+
+  // Uma listagem por pasta do R2 para todos os materiais, em vez de uma
+  // requisição por arquivo — o tamanho é só cosmético, não vale o custo.
+  const r2Keys = CURRICULUM.flatMap((m) =>
+    m.lessons.flatMap((l) => lessonMaterials(l).filter((mat) => mat.storage === "r2").map((mat) => mat.file)),
+  );
+  const r2Sizes = await r2FileSizes(r2Keys);
 
   const existing = await queryOne<{ id: string; title: string }>(
     `select id, title from courses where slug = $1`,
@@ -176,10 +193,11 @@ export async function syncCurriculum(
       // Materiais não têm slug: são só ponteiros para arquivos, refaz-se.
       await query(`delete from materials where lesson_id = $1`, [l.id]);
       for (const [xi, mat] of lessonMaterials(lesson).entries()) {
+        const size = mat.storage === "r2" ? (r2Sizes.get(mat.file) ?? null) : contentFileSize(mat.file);
         await query(
-          `insert into materials (lesson_id, title, storage_path, file_type, file_size, position)
-           values ($1, $2, $3, $4, $5, $6)`,
-          [l.id, mat.title, mat.file, mat.type, contentFileSize(mat.file), xi],
+          `insert into materials (lesson_id, title, storage_path, file_type, storage_provider, file_size, position)
+           values ($1, $2, $3, $4, $5, $6, $7)`,
+          [l.id, mat.title, mat.file, mat.type, mat.storage, size, xi],
         );
       }
     }

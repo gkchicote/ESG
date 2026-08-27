@@ -46,3 +46,11 @@ next-env.d.ts
 # Conteúdo do curso — arquivos grandes ficam fora do Git
 /content/videos/*
 !/content/videos/.gitkeep
+
+# Materiais com storage "r2" moram no bucket, não no repo — evita recommitar
+# por engano cópias locais como as de content/materials/jack-hannaford-*.
+/content/materials/*
+!/content/materials/.gitkeep
+
+# Cópia local da pasta original enviada ao R2 — fora do Git, mantida só na máquina.
+/Módulo 02/

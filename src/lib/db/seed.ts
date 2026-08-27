@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { contentFileSize } from "../content-files";
+import { contentFileSize, r2FileSizes } from "../content-files";
 import { COURSE, CURRICULUM, lessonMaterials, lessonVideo } from "./catalog";
 
 type Runner = {
@@ -32,6 +32,15 @@ export async function seed(db: Runner) {
       [COURSE.title, COURSE.slug, COURSE.description, COURSE.level],
     )
   ).rows as { id: string }[];
+
+  const r2Keys = CURRICULUM.flatMap((mod) =>
+    mod.lessons.flatMap((lesson) =>
+      lessonMaterials(lesson)
+        .filter((mat) => mat.storage === "r2")
+        .map((mat) => mat.file),
+    ),
+  );
+  const r2Sizes = await r2FileSizes(r2Keys);
 
   const lessonIds: string[] = [];
 
@@ -68,10 +77,11 @@ export async function seed(db: Runner) {
       lessonIds.push(l.id);
 
       for (const [xi, mat] of lessonMaterials(lesson).entries()) {
+        const size = mat.storage === "r2" ? (r2Sizes.get(mat.file) ?? null) : contentFileSize(mat.file);
         await db.query(
-          `insert into materials (lesson_id, title, storage_path, file_type, file_size, position)
-           values ($1, $2, $3, $4, $5, $6)`,
-          [l.id, mat.title, mat.file, mat.type, contentFileSize(mat.file), xi],
+          `insert into materials (lesson_id, title, storage_path, file_type, storage_provider, file_size, position)
+           values ($1, $2, $3, $4, $5, $6, $7)`,
+          [l.id, mat.title, mat.file, mat.type, mat.storage, size, xi],
         );
       }
     }

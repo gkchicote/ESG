@@ -24,18 +24,22 @@ export type VideoSeed = {
 };
 
 /**
- * Anexo da aula. `file` é o caminho relativo a `content/`
- * ("materials/jack-hannaford-01/texto.pdf"); um nome solto continua sendo
- * lido de content/pdfs, como nas primeiras versões do catálogo.
+ * Anexo da aula. `storage` decide como `file` é lido:
+ *   - "file" (padrão) — caminho relativo a `content/`
+ *     ("materials/jack-hannaford-01/texto.pdf"); um nome solto, sem barra,
+ *     continua sendo lido de content/pdfs, como nas primeiras versões do
+ *     catálogo.
+ *   - "r2" — chave do objeto no bucket privado, igual ao vídeo da aula.
  */
 export type MaterialSeed = {
   title: string;
   file: string;
   type?: "pdf" | "zip" | "audio";
+  storage?: "file" | "r2";
 };
 
 /** Faixa de áudio da aula. `voice` é o nome do narrador, mostrado no player. */
-export type AudioSeed = { voice: string; file: string };
+export type AudioSeed = { voice: string; file: string; storage?: "file" | "r2" };
 
 export type LessonSeed = {
   slug: string;
@@ -65,15 +69,23 @@ export function lessonVideo(lesson: LessonSeed): VideoSeed {
  * primeiro os arquivos para baixar, depois as faixas de áudio. Quem separa os
  * dois na tela é o `file_type`.
  */
-export function lessonMaterials(
-  lesson: LessonSeed,
-): { title: string; file: string; type: "pdf" | "zip" | "audio" }[] {
+export function lessonMaterials(lesson: LessonSeed): {
+  title: string;
+  file: string;
+  type: "pdf" | "zip" | "audio";
+  storage: "file" | "r2";
+}[] {
   return [
-    ...(lesson.materials ?? []).map((m) => ({ ...m, type: m.type ?? ("pdf" as const) })),
+    ...(lesson.materials ?? []).map((m) => ({
+      ...m,
+      type: m.type ?? ("pdf" as const),
+      storage: m.storage ?? ("file" as const),
+    })),
     ...(lesson.audios ?? []).map((a) => ({
       title: a.voice,
       file: a.file,
       type: "audio" as const,
+      storage: a.storage ?? ("file" as const),
     })),
   ];
 }
@@ -90,27 +102,43 @@ const VOICES = ["Jake", "John", "Moira", "Natalie"];
 /**
  * Anexos das aulas de Jack Hannaford.
  *
- * Os arquivos moram em content/materials/jack-hannaford-0N/ com nomes fixos
- * (texto.pdf, anki.zip, audio-<voz>.mp3), então basta o número da aula. Ao
- * contrário do vídeo, que é grande e mora no R2, estes são de KB a poucos MB
- * e saem do próprio servidor — vão junto no deploy, como os PDFs.
- *
- * `extra` cobre o que existe em uma aula só (o baralho .apkg da aula 01).
+ * Os arquivos moram no mesmo bucket privado do vídeo, dentro de
+ * F-MODULO02/Módulo 02/Aula 0N/ — a pasta original foi enviada ao R2 como
+ * está, nomes e espaços inclusive, então a chave de cada objeto segue esse
+ * padrão em vez do slug da aula. Só a aula 01 tem o baralho extra (.apkg).
  */
-function jackHannaford(
-  number: number,
-  extra: MaterialSeed[] = [],
-): { materials: MaterialSeed[]; audios: AudioSeed[] } {
-  const dir = `materials/jack-hannaford-${String(number).padStart(2, "0")}`;
+function jackHannaford(number: number): { materials: MaterialSeed[]; audios: AudioSeed[] } {
+  const n = String(number).padStart(2, "0");
+  // Só o PDF usa 3 dígitos ("PDF Jack Hannaford 001.pdf") — pasta e áudio usam 2.
+  const n3 = String(number).padStart(3, "0");
+  // A pasta foi enviada ao R2 a partir de um Mac, que grava nomes de arquivo
+  // no disco em NFD (o "ó" vira "o" + acento combinante) — diferente do NFC
+  // que qualquer editor de texto produz ao digitar o mesmo caractere. Bytes
+  // diferentes, mesmo com a mesma aparência: sem isto, a chave assinada não
+  // bate com a gravada e o R2 devolve 404 mesmo com o nome "certo" na tela.
+  const dir = `F-MODULO02/Módulo 02/Aula ${n}`.normalize("NFD");
+  // Único arquivo cujo nome não segue o padrão "JH<n> Frases para o Anki.zip".
+  const zipName = number === 1 ? "JH01 Sentence for Anki.zip" : `JH${number} Frases para o Anki.zip`;
+
   return {
     materials: [
-      { title: "Texto da aula", file: `${dir}/texto.pdf`, type: "pdf" },
-      { title: "Frases para o Anki", file: `${dir}/anki.zip`, type: "zip" },
-      ...extra.map((m) => ({ ...m, file: `${dir}/${m.file}` })),
+      { title: "Texto da aula", file: `${dir}/PDF Jack Hannaford ${n3}.pdf`, type: "pdf", storage: "r2" },
+      { title: "Frases para o Anki", file: `${dir}/${zipName}`, type: "zip", storage: "r2" },
+      ...(number === 1
+        ? [
+            {
+              title: "Baralho do Anki",
+              file: `${dir}/01_Jack_Hannaford.apkg`,
+              type: "zip" as const,
+              storage: "r2" as const,
+            },
+          ]
+        : []),
     ],
     audios: VOICES.map((voice) => ({
       voice,
-      file: `${dir}/audio-${voice.toLowerCase()}.mp3`,
+      file: `${dir}/AUDIO Jack Hannaford ${n} ${voice}.mp3`,
+      storage: "r2",
     })),
   };
 }
@@ -149,7 +177,7 @@ export const CURRICULUM: ModuleSeed[] = [
     title: "Jack Hannaford",
     description: "A história de Jack Hannaford, em oito aulas.",
     lessons: [
-      { slug: "jack-hannaford-01", title: "Aula 01 - Jack Hannaford", description: "", seconds: 1802, video: r2("F-MODULO02/M01V04 - Jack Hannaford 01.mp4"), ...jackHannaford(1, [{ title: "Baralho do Anki", file: "anki.apkg", type: "zip" }]) },
+      { slug: "jack-hannaford-01", title: "Aula 01 - Jack Hannaford", description: "", seconds: 1802, video: r2("F-MODULO02/M01V04 - Jack Hannaford 01.mp4"), ...jackHannaford(1) },
       { slug: "jack-hannaford-02", title: "Aula 02 - Jack Hannaford", description: "", seconds: 1917, video: r2("F-MODULO02/M02V11 - Jack Hannaford 02 (1).mp4"), ...jackHannaford(2) },
       { slug: "jack-hannaford-03", title: "Aula 03 - Jack Hannaford", description: "", seconds: 1113, video: r2("F-MODULO02/M02V12 - Jack Hannaford 03.mp4"), ...jackHannaford(3) },
       { slug: "jack-hannaford-04", title: "Aula 04 - Jack Hannaford", description: "", seconds: 1408, video: r2("F-MODULO02/M02V13 - Jack Hannaford 04.mp4"), ...jackHannaford(4) },

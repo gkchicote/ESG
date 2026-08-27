@@ -5,18 +5,28 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getMaterialForProfile } from "@/lib/db/queries";
 import { MATERIAL_MIME, contentFilePath } from "@/lib/content-files";
+import { presignR2Get } from "@/lib/r2";
 
 export const runtime = "nodejs";
 
 /**
  * Entrega o material só para quem tem matrícula ativa no curso da aula.
  *
+ * Dois caminhos, decididos por `storage_provider` (mesma ideia do vídeo em
+ * src/app/api/video/[lessonId]/route.ts):
+ *
+ * - `r2` — 302 para uma URL assinada e de vida curta. `storage_path` é a
+ *   chave completa do objeto no bucket, na mesma pasta do vídeo da aula.
+ * - `file` (padrão) — lê de content/ e faz o streaming aqui mesmo,
+ *   implementando `Range` na mão.
+ *
  * O áudio da aula passa por aqui como qualquer outro anexo, com uma diferença:
  * o player precisa poder arrastar a linha do tempo antes do arquivo inteiro
- * chegar, e o Safari só toca o que responde a `Range`. Daí o streaming parcial
- * abaixo, no mesmo formato da rota de vídeo.
+ * chegar, e o Safari só toca o que responde a `Range`. No provider `file` é
+ * o streaming parcial abaixo; no `r2`, o navegador reemite o `Range` na URL
+ * assinada de destino, então também funciona.
  *
- * No Supabase, troque a leitura de disco por:
+ * No Supabase, troque a leitura de disco (branch `file`) por:
  *   supabase.storage.from("materials").createSignedUrl(storage_path, 60)
  * e devolva um redirect para a URL assinada.
  */
@@ -33,6 +43,24 @@ export async function GET(
 
   if (material.file_type === "link") {
     return NextResponse.redirect(material.storage_path);
+  }
+
+  if (material.storage_provider === "r2") {
+    const extension = path.extname(material.storage_path).toLowerCase();
+    const downloadName = `${material.title}${extension}`;
+    const signed = presignR2Get(material.storage_path, {
+      responseContentType: MATERIAL_MIME[extension] ?? "application/octet-stream",
+      responseContentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
+    });
+    if (!signed) {
+      return new NextResponse("Hospedagem de material não configurada", { status: 503 });
+    }
+    // Assinado a cada requisição: guardá-lo em cache vazaria para outro
+    // aluno e ainda expiraria no meio do download ou da escuta.
+    return NextResponse.redirect(signed, {
+      status: 302,
+      headers: { "Cache-Control": "private, no-store" },
+    });
   }
 
   const filePath = contentFilePath(material.storage_path);

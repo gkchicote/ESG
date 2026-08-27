@@ -17,6 +17,7 @@ export type Material = {
   id: string;
   title: string;
   file_type: "pdf" | "zip" | "audio" | "link";
+  storage_provider: "file" | "r2";
   file_size: number | null;
   storage_path: string;
 };
@@ -148,7 +149,7 @@ export async function getCurriculum(
   const lessonIds = rows.map((r) => r.lesson_id).filter((x): x is string => !!x);
   const materials = lessonIds.length
     ? await query<Material & { lesson_id: string }>(
-        `select id, lesson_id, title, file_type, file_size, storage_path
+        `select id, lesson_id, title, file_type, storage_provider, file_size, storage_path
            from materials
           where lesson_id = any(string_to_array($1, ',')::uuid[])
           order by position, title`,
@@ -235,7 +236,7 @@ export function getLessonForProfile(profileId: string, lessonId: string) {
 
 export function getLessonMaterials(lessonId: string) {
   return query<Material>(
-    `select id, title, file_type, file_size, storage_path
+    `select id, title, file_type, storage_provider, file_size, storage_path
        from materials where lesson_id = $1 order by position, title`,
     [lessonId],
   );
@@ -244,7 +245,7 @@ export function getLessonMaterials(lessonId: string) {
 /** Material + checagem de matrícula, para o download protegido. */
 export function getMaterialForProfile(profileId: string, materialId: string) {
   return queryOne<Material>(
-    `select mt.id, mt.title, mt.file_type, mt.file_size, mt.storage_path
+    `select mt.id, mt.title, mt.file_type, mt.storage_provider, mt.file_size, mt.storage_path
        from materials mt
        join lessons l     on l.id = mt.lesson_id
        join modules m     on m.id = l.module_id

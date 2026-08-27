@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isR2Configured, listR2Objects } from "./r2";
 
 /**
  * Arquivos de material servidos do disco (content/).
@@ -38,4 +39,23 @@ export function contentFileSize(storagePath: string): number | null {
   const full = contentFilePath(storagePath);
   if (!full || !fs.existsSync(full)) return null;
   return fs.statSync(full).size;
+}
+
+/**
+ * Tamanho de várias chaves do R2, de uma vez — usado pelo sync do catálogo
+ * para preencher `file_size` sem uma requisição HEAD por material. Lista
+ * cada pasta (prefixo) só uma vez, mesmo com vários arquivos nela.
+ *
+ * Devolve mapa vazio se o R2 não estiver configurado: o sync roda em dev sem
+ * as credenciais, e o tamanho fica null (só cosmético — não trava a aula).
+ */
+export async function r2FileSizes(keys: string[]): Promise<Map<string, number>> {
+  const sizes = new Map<string, number>();
+  if (!isR2Configured() || keys.length === 0) return sizes;
+
+  const prefixes = new Set(keys.map((key) => key.slice(0, key.lastIndexOf("/") + 1)));
+  for (const prefix of prefixes) {
+    for (const object of await listR2Objects(prefix)) sizes.set(object.key, object.size);
+  }
+  return sizes;
 }

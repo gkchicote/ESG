@@ -49,12 +49,25 @@ export function isR2Configured(): boolean {
 /**
  * Assina um GET no objeto `key` e devolve a URL pronta.
  * Devolve null quando o ambiente não tem as credenciais.
+ *
+ * `responseContentType`/`responseContentDisposition` viram os parâmetros
+ * `response-content-type`/`response-content-disposition` da assinatura — a
+ * API do S3 (e o R2, compatível) os aceita para sobrescrever, só nesta
+ * resposta, o que o objeto tem gravado. Usado pelos materiais: o nome do
+ * arquivo salvo no R2 não é o título cadastrado na aula.
  */
 export function presignR2Get(
   key: string,
-  { expiresIn = DEFAULT_EXPIRES_SECONDS, config = r2Config() }: {
+  {
+    expiresIn = DEFAULT_EXPIRES_SECONDS,
+    config = r2Config(),
+    responseContentType,
+    responseContentDisposition,
+  }: {
     expiresIn?: number;
     config?: R2Config | null;
+    responseContentType?: string;
+    responseContentDisposition?: string;
   } = {},
 ): string | null {
   if (!config) return null;
@@ -62,7 +75,13 @@ export function presignR2Get(
   const host = `${config.accountId}.r2.cloudflarestorage.com`;
   const canonicalUri = `/${config.bucket}/${encodeKey(key)}`;
 
-  return sign({ config, host, canonicalUri, expiresIn, extraQuery: {} });
+  const extraQuery: Record<string, string> = {};
+  if (responseContentType) extraQuery["response-content-type"] = responseContentType;
+  if (responseContentDisposition) {
+    extraQuery["response-content-disposition"] = responseContentDisposition;
+  }
+
+  return sign({ config, host, canonicalUri, expiresIn, extraQuery });
 }
 
 /**

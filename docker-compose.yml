@@ -10,4 +10,5 @@ services:
       # Materiais reais do curso — troque os arquivos direto na VPS,
       # sem rebuildar a imagem.
       - ./content/pdfs:/app/content/pdfs
+      - ./content/materials:/app/content/materials
       - ./content/videos:/app/content/videos

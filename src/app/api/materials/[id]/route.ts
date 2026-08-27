@@ -1,26 +1,27 @@
 import fs from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getMaterialForProfile } from "@/lib/db/queries";
+import { MATERIAL_MIME, contentFilePath } from "@/lib/content-files";
 
 export const runtime = "nodejs";
 
-const CONTENT_TYPES: Record<string, string> = {
-  pdf: "application/pdf",
-  zip: "application/zip",
-  audio: "audio/mpeg",
-};
-
 /**
  * Entrega o material só para quem tem matrícula ativa no curso da aula.
+ *
+ * O áudio da aula passa por aqui como qualquer outro anexo, com uma diferença:
+ * o player precisa poder arrastar a linha do tempo antes do arquivo inteiro
+ * chegar, e o Safari só toca o que responde a `Range`. Daí o streaming parcial
+ * abaixo, no mesmo formato da rota de vídeo.
  *
  * No Supabase, troque a leitura de disco por:
  *   supabase.storage.from("materials").createSignedUrl(storage_path, 60)
  * e devolva um redirect para a URL assinada.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getSession();
@@ -34,23 +35,49 @@ export async function GET(
     return NextResponse.redirect(material.storage_path);
   }
 
-  // Impede path traversal: só o nome do arquivo é aproveitado.
-  const safeName = path.basename(material.storage_path);
-  const filePath = path.join(process.cwd(), "content", "pdfs", safeName);
-
-  if (!fs.existsSync(filePath)) {
+  const filePath = contentFilePath(material.storage_path);
+  if (!filePath || !fs.existsSync(filePath)) {
     return new NextResponse("Arquivo indisponível", { status: 404 });
   }
 
-  const file = await fs.promises.readFile(filePath);
-  const downloadName = `${material.title}.${safeName.split(".").pop() ?? "pdf"}`;
+  const extension = path.extname(filePath).toLowerCase();
+  const { size } = await fs.promises.stat(filePath);
+  const downloadName = `${material.title}${extension}`;
 
-  return new NextResponse(new Uint8Array(file), {
+  const baseHeaders = {
+    "Content-Type": MATERIAL_MIME[extension] ?? "application/octet-stream",
+    "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "private, no-store",
+  };
+
+  const range = request.headers.get("range");
+  if (!range) {
+    const stream = Readable.toWeb(fs.createReadStream(filePath)) as ReadableStream;
+    return new NextResponse(stream, {
+      headers: { ...baseHeaders, "Content-Length": String(size) },
+    });
+  }
+
+  const match = /bytes=(\d*)-(\d*)/.exec(range);
+  const start = match?.[1] ? Number(match[1]) : 0;
+  const end = match?.[2] ? Math.min(Number(match[2]), size - 1) : size - 1;
+
+  if (Number.isNaN(start) || start >= size || start > end) {
+    return new NextResponse("Range inválido", {
+      status: 416,
+      headers: { "Content-Range": `bytes */${size}` },
+    });
+  }
+
+  const stream = Readable.toWeb(fs.createReadStream(filePath, { start, end })) as ReadableStream;
+
+  return new NextResponse(stream, {
+    status: 206,
     headers: {
-      "Content-Type": CONTENT_TYPES[material.file_type] ?? "application/octet-stream",
-      "Content-Length": String(file.byteLength),
-      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
-      "Cache-Control": "private, no-store",
+      ...baseHeaders,
+      "Content-Range": `bytes ${start}-${end}/${size}`,
+      "Content-Length": String(end - start + 1),
     },
   });
 }

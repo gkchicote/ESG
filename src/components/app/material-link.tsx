@@ -11,6 +11,11 @@ export function MaterialLink({
   material: Material;
   className?: string;
 }) {
+  // O `file_type` agrupa formatos parecidos (o baralho do Anki entra como
+  // zip), então quem nomeia o arquivo na tela é a extensão real.
+  const extension = material.storage_path.split("/").pop()?.split(".").pop();
+  const label = material.file_type === "link" ? "link" : (extension ?? material.file_type);
+
   return (
     <a
       href={`/api/materials/${material.id}`}
@@ -27,7 +32,7 @@ export function MaterialLink({
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{material.title}</span>
         <span className="text-muted-foreground text-xs uppercase">
-          {material.file_type}
+          {label}
           {material.file_size ? ` · ${formatFileSize(material.file_size)}` : ""}
         </span>
       </span>

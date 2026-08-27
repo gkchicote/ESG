@@ -49,7 +49,9 @@ fs.mkdirSync(dir, { recursive: true });
 let count = 0;
 for (const [mi, module] of CURRICULUM.entries()) {
   for (const lesson of module.lessons) {
-    for (const material of lesson.materials ?? []) {
+    // Material com caminho (content/materials/...) é arquivo real do curso;
+    // o gerador só cobre os PDFs de demonstração soltos em content/pdfs.
+    for (const material of (lesson.materials ?? []).filter((m) => !m.file.includes("/"))) {
       const lines = [
         `Modulo ${mi + 1}: ${module.title}`,
         `Aula: ${lesson.title}`,

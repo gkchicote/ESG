@@ -1,7 +1,6 @@
-import fs from "node:fs";
-import path from "node:path";
 import { query, queryOne } from "./driver";
-import { COURSE, CURRICULUM, lessonVideo } from "./catalog";
+import { contentFileSize } from "../content-files";
+import { COURSE, CURRICULUM, lessonMaterials, lessonVideo } from "./catalog";
 
 /**
  * Aplica o catálogo (./catalog.ts) no banco.
@@ -53,11 +52,6 @@ async function ensureSchema() {
     `alter table lessons add constraint lessons_video_provider_check
        check (video_provider in ('file', 'r2', 'url', 'bunny', 'youtube', 'vimeo', 'drive'))`,
   );
-}
-
-function pdfSize(file: string): number | null {
-  const p = path.join(process.cwd(), "content", "pdfs", file);
-  return fs.existsSync(p) ? fs.statSync(p).size : null;
 }
 
 /**
@@ -181,11 +175,11 @@ export async function syncCurriculum(
 
       // Materiais não têm slug: são só ponteiros para arquivos, refaz-se.
       await query(`delete from materials where lesson_id = $1`, [l.id]);
-      for (const [xi, mat] of (lesson.materials ?? []).entries()) {
+      for (const [xi, mat] of lessonMaterials(lesson).entries()) {
         await query(
           `insert into materials (lesson_id, title, storage_path, file_type, file_size, position)
-           values ($1, $2, $3, 'pdf', $4, $5)`,
-          [l.id, mat.title, mat.file, pdfSize(mat.file), xi],
+           values ($1, $2, $3, $4, $5, $6)`,
+          [l.id, mat.title, mat.file, mat.type, contentFileSize(mat.file), xi],
         );
       }
     }

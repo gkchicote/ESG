@@ -12,9 +12,13 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { MaterialLink } from "@/components/app/material-link";
 import { formatDuration } from "@/lib/format";
-import type { ModuleWithLessons } from "@/lib/db/queries";
+import type { Lesson, ModuleWithLessons } from "@/lib/db/queries";
 import { progressTone } from "@/lib/progress-tone";
 import { cn } from "@/lib/utils";
+
+/** O áudio da aula tem player próprio dentro dela; aqui só o que se baixa. */
+const attachmentsOf = (lesson: Lesson) =>
+  lesson.materials.filter((material) => material.file_type !== "audio");
 
 export function CurriculumAccordion({
   modules,
@@ -99,6 +103,7 @@ export function CurriculumAccordion({
               <ol className="divide-y border-y">
                 {module.lessons.map((lesson) => {
                   const active = lesson.id === currentLessonId;
+                  const attachments = attachmentsOf(lesson);
 
                   return (
                     <li key={lesson.id} className="py-1">
@@ -135,11 +140,11 @@ export function CurriculumAccordion({
                           >
                             {module.position}.{lesson.position} {lesson.title}
                           </span>
-                          {lesson.materials.length > 0 && (
+                          {attachments.length > 0 && (
                             <span className="text-muted-foreground mt-0.5 flex items-center gap-1 text-xs">
                               <Paperclip className="size-3" strokeWidth={1.75} />
-                              {lesson.materials.length} material
-                              {lesson.materials.length > 1 ? "is" : ""}
+                              {attachments.length} material
+                              {attachments.length > 1 ? "is" : ""}
                             </span>
                           )}
                         </span>
@@ -158,14 +163,14 @@ export function CurriculumAccordion({
                 })}
               </ol>
 
-              {module.lessons.some((l) => l.materials.length > 0) && (
+              {module.lessons.some((l) => attachmentsOf(l).length > 0) && (
                 <div className="mt-5">
                   <p className="text-muted-foreground mb-2.5 text-xs font-medium tracking-wide uppercase">
                     Materiais do módulo
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {module.lessons.flatMap((l) =>
-                      l.materials.map((m) => <MaterialLink key={m.id} material={m} />),
+                      attachmentsOf(l).map((m) => <MaterialLink key={m.id} material={m} />),
                     )}
                   </div>
                 </div>

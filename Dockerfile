@@ -29,9 +29,10 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# content/pdfs e content/videos são normalmente montados como volume (docker-compose),
-# mas garantem os diretórios existirem mesmo em `docker run` sem volume.
-RUN mkdir -p content/pdfs content/videos && chown -R nextjs:nodejs content
+# content/pdfs, content/materials e content/videos são normalmente montados como
+# volume (docker-compose), mas garantem os diretórios existirem mesmo em
+# `docker run` sem volume.
+RUN mkdir -p content/pdfs content/materials content/videos && chown -R nextjs:nodejs content
 
 USER nextjs
 EXPOSE 3000

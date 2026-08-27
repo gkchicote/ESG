@@ -1,17 +1,10 @@
-import fs from "node:fs";
-import path from "node:path";
 import bcrypt from "bcryptjs";
-import { COURSE, CURRICULUM, lessonVideo } from "./catalog";
+import { contentFileSize } from "../content-files";
+import { COURSE, CURRICULUM, lessonMaterials, lessonVideo } from "./catalog";
 
 type Runner = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
 };
-
-/** Tamanho real dos PDFs gerados, para exibir na interface. */
-function pdfSize(file: string): number | null {
-  const p = path.join(process.cwd(), "content", "pdfs", file);
-  return fs.existsSync(p) ? fs.statSync(p).size : null;
-}
 
 /**
  * Popula o banco com o curso de demonstração.
@@ -74,11 +67,11 @@ export async function seed(db: Runner) {
 
       lessonIds.push(l.id);
 
-      for (const [xi, mat] of (lesson.materials ?? []).entries()) {
+      for (const [xi, mat] of lessonMaterials(lesson).entries()) {
         await db.query(
           `insert into materials (lesson_id, title, storage_path, file_type, file_size, position)
-           values ($1, $2, $3, 'pdf', $4, $5)`,
-          [l.id, mat.title, mat.file, pdfSize(mat.file), xi],
+           values ($1, $2, $3, $4, $5, $6)`,
+          [l.id, mat.title, mat.file, mat.type, contentFileSize(mat.file), xi],
         );
       }
     }

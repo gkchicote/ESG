@@ -55,12 +55,13 @@ devolvida, mesmo com o ID em mãos.
 db/schema.sql              Schema Postgres (roda igual em PGlite e Supabase)
 content/videos/            MP4 das aulas  (fora do Git)
 content/pdfs/              Materiais em PDF
+content/materials/         Anexos e áudios por aula (content/materials/<slug-da-aula>/)
 src/app/login/             Tela de login
 src/app/(app)/inicio/      Dashboard
 src/app/(app)/modulos/     Módulos em accordion
 src/app/(app)/aula/[id]/   Player + lista lateral
 src/app/api/video/[id]/    Streaming com suporte a Range
-src/app/api/materials/[id] Download de PDF com checagem de matrícula
+src/app/api/materials/[id] Entrega de anexos e áudio (Range) com checagem de matrícula
 src/app/api/progress/      Gravação final da posição (sendBeacon)
 src/lib/db/                Driver, queries e seed
 src/lib/auth/              Sessão, hash de senha e Server Actions
@@ -188,11 +189,28 @@ muitos alunos acessando ao mesmo tempo, a aula pode parar de abrir para todo
 mundo. Prefira sempre `file` (MP4 no seu próprio servidor); este provider fica
 disponível só para quem tiver conteúdo que comprovadamente não seja sinalizado.
 
-### 2. PDFs
+### 2. Anexos e áudio das aulas
 
-Copie para `content/pdfs/` e cadastre em `materials.storage_path` com o nome do
-arquivo. O download nunca é servido estaticamente: passa por
-`/api/materials/[id]`, que valida a matrícula antes de entregar o arquivo.
+Os arquivos ficam em `content/materials/<slug-da-aula>/` e são declarados na
+aula, dentro de `src/lib/db/catalog.ts`:
+
+```ts
+materials: [{ title: "Texto da aula", file: "materials/jack-hannaford-01/texto.pdf", type: "pdf" }],
+audios:    [{ voice: "Jake", file: "materials/jack-hannaford-01/audio-jake.mp3" }],
+```
+
+`file` é o caminho relativo a `content/` — um nome solto, sem barra, continua
+sendo lido de `content/pdfs/`. Rode `npm run content:sync` (ou clique em
+"Publicar catálogo" em `/admin`) para gravar em `materials`; o tamanho de cada
+arquivo é lido do disco na hora do sync e aparece na tela.
+
+`materials` vira a lista de download em **Material da aula**; `audios` vira o
+player de **Áudio da aula**, com um botão por voz — é a mesma gravação lida por
+narradores diferentes, e trocar de voz no meio não interrompe a reprodução.
+
+Nada é servido estaticamente: tudo passa por `/api/materials/[id]`, que valida a
+matrícula antes de entregar o arquivo e responde a `Range` (o player de áudio
+precisa disso para arrastar a linha do tempo, e o Safari para tocar).
 
 ### 3. Liberando o curso para o aluno
 
@@ -224,10 +242,12 @@ Use `--curso <slug>` para escolher outro e `--papel admin` para um administrador
 3. **Vídeo** — suba os MP4 para o bucket do Cloudflare R2 e preencha as quatro
    variáveis `R2_*`. O bucket fica privado e a saída de dados do R2 não é
    cobrada, então o número de alunos não mexe na conta.
-4. **Deploy** — Vercel. `content/pdfs` cabe no repositório; se os materiais
-   crescerem, migre para o Supabase Storage e troque a leitura de disco em
-   `src/app/api/materials/[id]/route.ts` por uma signed URL (há um comentário
-   no arquivo indicando o ponto exato).
+4. **Deploy** — Vercel. `content/pdfs` e `content/materials` cabem no
+   repositório (dezenas de MB, contra os GB do vídeo); se os materiais
+   crescerem, migre para o Supabase Storage ou para o próprio R2 e troque a
+   leitura de disco em `src/app/api/materials/[id]/route.ts` por uma signed URL
+   (há um comentário no arquivo indicando o ponto exato). No deploy com Docker,
+   `content/materials` é montado como volume, igual a `content/pdfs`.
 
 ---
 

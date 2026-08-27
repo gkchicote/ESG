@@ -9,6 +9,7 @@ import { resolveVideoSource } from "@/lib/video";
 import { formatDuration } from "@/lib/format";
 import { MaterialLink } from "@/components/app/material-link";
 import { Button } from "@/components/ui/button";
+import { LessonAudio } from "./lesson-audio";
 import { LessonSidebar } from "./lesson-sidebar";
 import { LessonStage } from "./lesson-stage";
 
@@ -41,6 +42,11 @@ export default async function LessonPage({ params }: Props) {
   await touchEnrollment(session.sub, course.id, lessonId);
 
   const source = resolveVideoSource(lesson.video_provider, lesson.video_id, lesson.id);
+
+  // Áudio não é anexo para baixar: é a mesma gravação em vozes diferentes,
+  // que ganha o player logo abaixo dos materiais.
+  const audios = lesson.materials.filter((m) => m.file_type === "audio");
+  const attachments = lesson.materials.filter((m) => m.file_type !== "audio");
 
   return (
     <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
@@ -82,9 +88,9 @@ export default async function LessonPage({ params }: Props) {
           {/* Materiais ---------------------------------------------- */}
           <section className="mt-9">
             <h2 className="mb-3 text-sm font-medium">Material da aula</h2>
-            {lesson.materials.length > 0 ? (
+            {attachments.length > 0 ? (
               <div className="grid gap-2 sm:grid-cols-2">
-                {lesson.materials.map((material) => (
+                {attachments.map((material) => (
                   <MaterialLink key={material.id} material={material} />
                 ))}
               </div>
@@ -94,6 +100,17 @@ export default async function LessonPage({ params }: Props) {
               </p>
             )}
           </section>
+
+          {/* Áudio da aula ------------------------------------------- */}
+          {audios.length > 0 && (
+            <section className="mt-8">
+              <h2 className="text-sm font-medium">Áudio da aula</h2>
+              <p className="text-muted-foreground mt-1 mb-3 text-sm">
+                A mesma história em {audios.length} vozes. Escolha com quem treinar.
+              </p>
+              <LessonAudio tracks={audios} lessonTitle={lesson.title} />
+            </section>
+          )}
         </div>
 
         {/* Lista lateral --------------------------------------------- */}

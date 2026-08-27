@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { applyMigrations } from "./migrate";
 
 /**
  * Camada de acesso ao banco.
@@ -55,13 +56,31 @@ async function createPostgresDriver(url: string): Promise<Driver> {
   };
 }
 
+/**
+ * Aplica as migrações no boot, uma vez por processo.
+ *
+ * Um erro aqui não derruba o app: o banco pode estar num estado em que o
+ * DDL não é permitido (usuário só de leitura, por exemplo) e as telas ainda
+ * funcionarem. A publicação do catálogo roda as mesmas migrações e aí sim
+ * mostra o erro para quem clicou.
+ */
+async function withMigrations(driver: Driver): Promise<Driver> {
+  try {
+    await applyMigrations((sql) => driver.query(sql));
+  } catch (error) {
+    console.error("  ! Falha ao aplicar migrações de schema:", error);
+  }
+  return driver;
+}
+
 // Singleton — sobrevive ao hot-reload do Next em desenvolvimento.
 const globalForDb = globalThis as unknown as { __lmsDriver?: Promise<Driver> };
 
 function getDriver(): Promise<Driver> {
   if (!globalForDb.__lmsDriver) {
     const url = process.env.DATABASE_URL;
-    globalForDb.__lmsDriver = url ? createPostgresDriver(url) : createPgliteDriver();
+    const driver = url ? createPostgresDriver(url) : createPgliteDriver();
+    globalForDb.__lmsDriver = driver.then(withMigrations);
   }
   return globalForDb.__lmsDriver;
 }

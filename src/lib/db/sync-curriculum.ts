@@ -1,4 +1,5 @@
 import { query, queryOne } from "./driver";
+import { applyMigrations } from "./migrate";
 import { contentFileSize, r2FileSizes } from "../content-files";
 import { COURSE, CURRICULUM, lessonMaterials, lessonVideo } from "./catalog";
 
@@ -29,39 +30,12 @@ export type SyncSummary = {
 type Log = (line: string) => void;
 
 /**
- * Aplica em qualquer banco (dev ou produção) as mudanças de schema que
- * `db/schema.sql` sozinho não cobre — ele só roda no primeiro boot do PGlite,
- * nunca contra um Postgres apontado por DATABASE_URL. É por isso que este
- * sync também assume o papel de migração incremental.
+ * As migrações também rodam no boot do driver (src/lib/db/migrate.ts). Aqui
+ * elas são refeitas de propósito: se o boot falhou por falta de permissão, é
+ * neste clique que o erro precisa aparecer para quem publica o catálogo.
  */
 async function ensureSchema() {
-  // Colunas de slug: bancos criados antes desta versão não as têm.
-  await query(`alter table modules add column if not exists slug text`);
-  await query(`alter table lessons add column if not exists slug text`);
-  await query(
-    `create unique index if not exists modules_course_slug_idx on modules (course_id, slug)`,
-  );
-  await query(
-    `create unique index if not exists lessons_module_slug_idx on lessons (module_id, slug)`,
-  );
-
-  // Provedores de vídeo aceitos: recria a checagem com o valor novo.
-  // drop+add é idempotente — não falha se já tiver sido aplicado.
-  await query(`alter table lessons drop constraint if exists lessons_video_provider_check`);
-  await query(
-    `alter table lessons add constraint lessons_video_provider_check
-       check (video_provider in ('file', 'r2', 'url', 'bunny', 'youtube', 'vimeo', 'drive'))`,
-  );
-
-  // Coluna de provedor de materiais: bancos criados antes desta versão não a têm.
-  await query(
-    `alter table materials add column if not exists storage_provider text not null default 'file'`,
-  );
-  await query(`alter table materials drop constraint if exists materials_storage_provider_check`);
-  await query(
-    `alter table materials add constraint materials_storage_provider_check
-       check (storage_provider in ('file', 'r2'))`,
-  );
+  await applyMigrations((sql) => query(sql));
 }
 
 /**

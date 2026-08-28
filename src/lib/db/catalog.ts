@@ -59,9 +59,28 @@ export type ModuleSeed = {
   lessons: LessonSeed[];
 };
 
+/**
+ * Normaliza uma chave do R2 para NFD.
+ *
+ * Todas as pastas do curso foram enviadas ao bucket a partir de um Mac, que
+ * grava nomes de arquivo no disco em NFD (o "ó" vira "o" + acento combinante)
+ * — diferente do NFC que qualquer editor de texto produz ao digitar o mesmo
+ * caractere. Bytes diferentes, mesmo com a mesma aparência: sem isto, a chave
+ * assinada não bate com a gravada e o R2 devolve 404 mesmo com o nome "certo"
+ * na tela.
+ *
+ * Fica aqui, no único ponto por onde toda chave passa a caminho do banco, em
+ * vez de em cada entrada do catálogo — assim nenhuma aula nova pode esquecer.
+ */
+function r2Key(key: string): string {
+  return key.normalize("NFD");
+}
+
 /** Resolve o `video` de uma aula, aplicando o padrão de arquivo local. */
 export function lessonVideo(lesson: LessonSeed): VideoSeed {
-  return lesson.video ?? { provider: "file", id: `${lesson.slug}.mp4` };
+  const video = lesson.video ?? { provider: "file" as const, id: `${lesson.slug}.mp4` };
+  if (video.provider !== "r2" || !video.id) return video;
+  return { ...video, id: r2Key(video.id) };
 }
 
 /**
@@ -77,13 +96,14 @@ export function lessonMaterials(lesson: LessonSeed): {
 }[] {
   return [
     ...(lesson.materials ?? []).map((m) => ({
-      ...m,
+      title: m.title,
+      file: m.storage === "r2" ? r2Key(m.file) : m.file,
       type: m.type ?? ("pdf" as const),
       storage: m.storage ?? ("file" as const),
     })),
     ...(lesson.audios ?? []).map((a) => ({
       title: a.voice,
-      file: a.file,
+      file: a.storage === "r2" ? r2Key(a.file) : a.file,
       type: "audio" as const,
       storage: a.storage ?? ("file" as const),
     })),
@@ -96,51 +116,99 @@ export function lessonMaterials(lesson: LessonSeed): {
  */
 const r2 = (key: string): VideoSeed => ({ provider: "r2", id: key });
 
-/** Narradores do áudio de treino, na ordem em que aparecem no player. */
-const VOICES = ["Jake", "John", "Moira", "Natalie"];
-
 /**
- * Anexos das aulas de Jack Hannaford.
+ * Anexos de uma aula de história (módulos 02 a 04).
  *
- * Os arquivos moram no mesmo bucket privado do vídeo, dentro de
- * F-MODULO02/Módulo 02/Aula 0N/ — a pasta original foi enviada ao R2 como
- * está, nomes e espaços inclusive, então a chave de cada objeto segue esse
- * padrão em vez do slug da aula. Só a aula 01 tem o baralho extra (.apkg).
+ * Os três módulos têm a mesma pasta no R2 — o PDF do texto, um .zip de frases
+ * para o Anki e a mesma gravação em quatro vozes — mas cada um foi nomeado por
+ * uma pessoa diferente, então o padrão do nome muda de módulo para módulo. As
+ * pastas foram enviadas ao bucket como estavam, com espaços e maiúsculas
+ * inclusive, e renomear o objeto no R2 quebraria a aula: quem se adapta é o
+ * catálogo. Daí cada módulo abaixo passar o seu próprio molde de nome.
+ *
+ * `deck` é o baralho do Anki do módulo inteiro (.apkg). Ele mora na raiz da
+ * pasta do módulo, não na da aula, e por isso entra só na aula 01.
  */
-function jackHannaford(number: number): { materials: MaterialSeed[]; audios: AudioSeed[] } {
-  const n = String(number).padStart(2, "0");
-  // Só o PDF usa 3 dígitos ("PDF Jack Hannaford 001.pdf") — pasta e áudio usam 2.
-  const n3 = String(number).padStart(3, "0");
-  // A pasta foi enviada ao R2 a partir de um Mac, que grava nomes de arquivo
-  // no disco em NFD (o "ó" vira "o" + acento combinante) — diferente do NFC
-  // que qualquer editor de texto produz ao digitar o mesmo caractere. Bytes
-  // diferentes, mesmo com a mesma aparência: sem isto, a chave assinada não
-  // bate com a gravada e o R2 devolve 404 mesmo com o nome "certo" na tela.
-  const dir = `F-MODULO02/Módulo 02/Aula ${n}`.normalize("NFD");
-  // Único arquivo cujo nome não segue o padrão "JH<n> Frases para o Anki.zip".
-  const zipName = number === 1 ? "JH01 Sentence for Anki.zip" : `JH${number} Frases para o Anki.zip`;
-
+function storyMaterials({
+  dir,
+  pdf,
+  zip,
+  audio,
+  voices,
+  deck,
+}: {
+  /** Pasta da aula no bucket, já com o número. */
+  dir: string;
+  /** Nome do PDF do texto, dentro de `dir`. */
+  pdf: string;
+  /** Nome do .zip de frases para o Anki, dentro de `dir`. */
+  zip: string;
+  /** Nome do MP3 de uma voz, dentro de `dir`. */
+  audio: (voice: string) => string;
+  /** Narradores, na ordem em que aparecem no player. */
+  voices: string[];
+  /** Baralho do módulo — caminho completo; só a aula 01 recebe. */
+  deck?: string;
+}): { materials: MaterialSeed[]; audios: AudioSeed[] } {
   return {
     materials: [
-      { title: "Texto da aula", file: `${dir}/PDF Jack Hannaford ${n3}.pdf`, type: "pdf", storage: "r2" },
-      { title: "Frases para o Anki", file: `${dir}/${zipName}`, type: "zip", storage: "r2" },
-      ...(number === 1
-        ? [
-            {
-              title: "Baralho do Anki",
-              file: `${dir}/01_Jack_Hannaford.apkg`,
-              type: "zip" as const,
-              storage: "r2" as const,
-            },
-          ]
+      { title: "Texto da aula", file: `${dir}/${pdf}`, type: "pdf", storage: "r2" },
+      { title: "Frases para o Anki", file: `${dir}/${zip}`, type: "zip", storage: "r2" },
+      ...(deck
+        ? [{ title: "Baralho do Anki", file: deck, type: "zip" as const, storage: "r2" as const }]
         : []),
     ],
-    audios: VOICES.map((voice) => ({
+    audios: voices.map((voice) => ({
       voice,
-      file: `${dir}/AUDIO Jack Hannaford ${n} ${voice}.mp3`,
-      storage: "r2",
+      file: `${dir}/${audio(voice)}`,
+      storage: "r2" as const,
     })),
   };
+}
+
+/** Anexos das aulas de Jack Hannaford (módulo 02). */
+function jackHannaford(number: number): { materials: MaterialSeed[]; audios: AudioSeed[] } {
+  const n = String(number).padStart(2, "0");
+  return storyMaterials({
+    dir: `F-MODULO02/Módulo 02/Aula ${n}`,
+    // Só o PDF usa 3 dígitos ("PDF Jack Hannaford 001.pdf") — pasta e áudio usam 2.
+    pdf: `PDF Jack Hannaford ${String(number).padStart(3, "0")}.pdf`,
+    // A aula 01 é a única cujo .zip não segue "JH<n> Frases para o Anki.zip".
+    zip: number === 1 ? "JH01 Sentence for Anki.zip" : `JH${number} Frases para o Anki.zip`,
+    audio: (voice) => `AUDIO Jack Hannaford ${n} ${voice}.mp3`,
+    voices: ["Jake", "John", "Moira", "Natalie"],
+    deck: number === 1 ? "F-MODULO02/Módulo 02/Aula 01/01_Jack_Hannaford.apkg" : undefined,
+  });
+}
+
+/** Anexos das aulas de The Endless Tale (módulo 03). */
+function theEndlessTale(number: number): { materials: MaterialSeed[]; audios: AudioSeed[] } {
+  const n = String(number).padStart(2, "0");
+  return storyMaterials({
+    dir: `F-MODULO03/Módulo 03/The Endless Tale ${n}`,
+    pdf: `PDF The Endless Tale ${n}.pdf`,
+    zip: `TET ${n} Audios para o Anki.zip`,
+    audio: (voice) => `AUDIO The Endless Tale ${n} ${voice}.mp3`,
+    voices: ["Harry", "James", "Natalie", "Peter"],
+    deck: number === 1 ? "F-MODULO03/Módulo 03/03_The_Endless_Tale.apkg" : undefined,
+  });
+}
+
+/** Anexos das aulas de Jack and the Beanstalk (módulo 04). */
+function jackAndTheBeanstalk(number: number): { materials: MaterialSeed[]; audios: AudioSeed[] } {
+  const n = String(number).padStart(2, "0");
+  return storyMaterials({
+    // Aqui a pasta do módulo veio sem acento ("Modulo 04"), ao contrário das
+    // dos módulos 02 e 03.
+    dir: `F-MODULO04/Modulo 04/Jack and the Beanstalk ${n}`,
+    // O PDF escreve "The" com maiúscula (o áudio e a pasta, não), e o da aula
+    // 05 é o único com 3 dígitos.
+    pdf: `PDF Jack and The Beanstalk ${number === 5 ? "005" : n}.pdf`,
+    zip: `JATB ${n} Audios para o Anki.zip`,
+    audio: (voice) => `AUDIO Jack and the Beanstalk ${n} ${voice}.mp3`,
+    voices: ["Daniel", "Natalie", "Peter", "Zoe"],
+    deck: number === 1 ? "F-MODULO04/Modulo 04/04_Jack_and_the_Beanstalk.apkg" : undefined,
+  });
 }
 
 /** O curso em si. O sync cria a linha em `courses` se ela ainda não existir. */
@@ -156,10 +224,10 @@ export const CURRICULUM: ModuleSeed[] = [
   {
     // ---------------------------------------------------------------
     //  Todo o vídeo do curso mora no bucket privado do Cloudflare R2, na
-    //  pasta do módulo (F-MODULO02, F-MODULO03, ...). Os nomes das pastas
-    //  seguem a numeração original da gravação, não a posição do módulo
-    //  aqui — renomear o objeto no R2 quebraria a aula, então eles ficam
-    //  como estão.
+    //  pasta do módulo (F-MODULO01, F-MODULO02, ...). Os nomes dos arquivos
+    //  seguem a numeração original da gravação ("M03V20 - ..."), que é
+    //  contínua entre os módulos e não recomeça a cada um — renomear o
+    //  objeto no R2 quebraria a aula, então eles ficam como estão.
     //
     //  Antes disso o YouTube e o Google Drive bloquearam os arquivos por
     //  conta própria (sinalizados como "suspeitos"), e servir do VPS
@@ -172,7 +240,22 @@ export const CURRICULUM: ModuleSeed[] = [
     //    2. copie o nome exato do objeto para o `video: r2(...)` abaixo
     //    3. rode `npm run content:sync` (ou clique em "Publicar catálogo"
     //       em /admin)
+    //
+    //  A ordem dos módulos nesta lista é a ordem em que eles aparecem para
+    //  o aluno: o `position` no banco sai do índice do array.
     // ---------------------------------------------------------------
+    slug: "introducao",
+    title: "Introdução",
+    description: "Como o curso funciona e como estudar com o Anki, em cinco aulas.",
+    lessons: [
+      { slug: "introducao-01", title: "Exemplo prático de estudo de textos com áudio", description: "", seconds: 720, video: r2("F-MODULO01/M01V05 - Exemplo prático de estudo de textos com áudio.mp4") },
+      { slug: "introducao-02", title: "Anki e o método de sentenças", description: "", seconds: 1398, video: r2("F-MODULO01/M01V06 - Anki e o método de sentenças.mp4") },
+      { slug: "introducao-03", title: "Como instalar e configurar corretamente o Anki", description: "", seconds: 1899, video: r2("F-MODULO01/M01V07 - Como instalar e configurar corretamente o Anki.mp4") },
+      { slug: "introducao-04", title: "Como estudar com o Anki na Etapa 1", description: "", seconds: 1970, video: r2("F-MODULO01/M01V08 - Como estudar com o Anki na Etapa 1.mp4") },
+      { slug: "introducao-05", title: "Conclusão do Módulo 01", description: "", seconds: 292, video: r2("F-MODULO01/M01V09 - Conclusão do Módulo 01.mp4") },
+    ],
+  },
+  {
     slug: "jack-hannaford",
     title: "Jack Hannaford",
     description: "A história de Jack Hannaford, em oito aulas.",
@@ -192,13 +275,29 @@ export const CURRICULUM: ModuleSeed[] = [
     title: "The Endless Tale",
     description: "A história de The Endless Tale, em sete aulas.",
     lessons: [
-      { slug: "the-endless-tale-01", title: "Aula 01 - The Endless Tale", description: "", seconds: 1354, video: r2("F-MODULO03/M03V20 - The Endless Tale 01.mp4") },
-      { slug: "the-endless-tale-02", title: "Aula 02 - The Endless Tale", description: "", seconds: 1574, video: r2("F-MODULO03/M03V21 - The Endless Tale 02.mp4") },
-      { slug: "the-endless-tale-03", title: "Aula 03 - The Endless Tale", description: "", seconds: 1121, video: r2("F-MODULO03/M03V22 - The Endless Tale 03.mp4") },
-      { slug: "the-endless-tale-04", title: "Aula 04 - The Endless Tale", description: "", seconds: 862, video: r2("F-MODULO03/M03V23 - The Endless Tale 04.mp4") },
-      { slug: "the-endless-tale-05", title: "Aula 05 - The Endless Tale", description: "", seconds: 1379, video: r2("F-MODULO03/M03V24 - The Endless Tale 05.mp4") },
-      { slug: "the-endless-tale-06", title: "Aula 06 - The Endless Tale", description: "", seconds: 1155, video: r2("F-MODULO03/M03V25 - The Endless Tale 06.mp4") },
-      { slug: "the-endless-tale-07", title: "Aula 07 - The Endless Tale", description: "", seconds: 1107, video: r2("F-MODULO03/M03V26 - The Endless Tale 07.mp4") },
+      { slug: "the-endless-tale-01", title: "Aula 01 - The Endless Tale", description: "", seconds: 1354, video: r2("F-MODULO03/M03V20 - The Endless Tale 01.mp4"), ...theEndlessTale(1) },
+      { slug: "the-endless-tale-02", title: "Aula 02 - The Endless Tale", description: "", seconds: 1574, video: r2("F-MODULO03/M03V21 - The Endless Tale 02.mp4"), ...theEndlessTale(2) },
+      { slug: "the-endless-tale-03", title: "Aula 03 - The Endless Tale", description: "", seconds: 1121, video: r2("F-MODULO03/M03V22 - The Endless Tale 03.mp4"), ...theEndlessTale(3) },
+      { slug: "the-endless-tale-04", title: "Aula 04 - The Endless Tale", description: "", seconds: 862, video: r2("F-MODULO03/M03V23 - The Endless Tale 04.mp4"), ...theEndlessTale(4) },
+      { slug: "the-endless-tale-05", title: "Aula 05 - The Endless Tale", description: "", seconds: 1379, video: r2("F-MODULO03/M03V24 - The Endless Tale 05.mp4"), ...theEndlessTale(5) },
+      { slug: "the-endless-tale-06", title: "Aula 06 - The Endless Tale", description: "", seconds: 1155, video: r2("F-MODULO03/M03V25 - The Endless Tale 06.mp4"), ...theEndlessTale(6) },
+      { slug: "the-endless-tale-07", title: "Aula 07 - The Endless Tale", description: "", seconds: 1107, video: r2("F-MODULO03/M03V26 - The Endless Tale 07.mp4"), ...theEndlessTale(7) },
+      { slug: "the-endless-tale-conclusao", title: "Conclusão do Módulo 03", description: "", seconds: 418, video: r2("F-MODULO03/M03V27 - Conclusão do Módulo 03_comprimido.mp4") },
+    ],
+  },
+  {
+    slug: "jack-and-the-beanstalk",
+    title: "Jack and the Beanstalk",
+    description: "A história de Jack and the Beanstalk, em seis aulas.",
+    lessons: [
+      { slug: "jack-and-the-beanstalk-instrucoes", title: "Instruções do Módulo 04", description: "", seconds: 457, video: r2("F-MODULO04/M04V28 Instruções do Módulo 04_comprimido.mp4") },
+      { slug: "jack-and-the-beanstalk-01", title: "Aula 01 - Jack and the Beanstalk", description: "", seconds: 1346, video: r2("F-MODULO04/M04V29 Jack and the Beanstalk 01_comprimido.mp4"), ...jackAndTheBeanstalk(1) },
+      { slug: "jack-and-the-beanstalk-02", title: "Aula 02 - Jack and the Beanstalk", description: "", seconds: 1325, video: r2("F-MODULO04/M04V30 Jack and the Beanstalk 02_comprimido.mp4"), ...jackAndTheBeanstalk(2) },
+      { slug: "jack-and-the-beanstalk-03", title: "Aula 03 - Jack and the Beanstalk", description: "", seconds: 1495, video: r2("F-MODULO04/M04V31 Jack and the Beanstalk 03_comprimido.mp4"), ...jackAndTheBeanstalk(3) },
+      { slug: "jack-and-the-beanstalk-04", title: "Aula 04 - Jack and the Beanstalk", description: "", seconds: 1068, video: r2("F-MODULO04/M04V32 Jack and the Beanstalk 04_comprimido.mp4"), ...jackAndTheBeanstalk(4) },
+      { slug: "jack-and-the-beanstalk-05", title: "Aula 05 - Jack and the Beanstalk", description: "", seconds: 725, video: r2("F-MODULO04/M04V33 Jack and the Beanstalk 05_comprimido.mp4"), ...jackAndTheBeanstalk(5) },
+      { slug: "jack-and-the-beanstalk-06", title: "Aula 06 - Jack and the Beanstalk", description: "", seconds: 1365, video: r2("F-MODULO04/M04V34 Jack and the Beanstalk 06_comprimido.mp4"), ...jackAndTheBeanstalk(6) },
+      { slug: "jack-and-the-beanstalk-conclusao", title: "Conclusão do Módulo 04", description: "", seconds: 147, video: r2("F-MODULO04/M04V35 Conclusão do Módulo 04_comprimido.mp4") },
     ],
   },
 ];

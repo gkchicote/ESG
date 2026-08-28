@@ -27,6 +27,7 @@ export async function saveLessonProgress(
   if (completed) {
     revalidatePath("/inicio");
     revalidatePath("/modulos");
+    revalidatePath("/progresso");
     revalidatePath(`/aula/${lessonId}`);
   }
 
@@ -45,6 +46,7 @@ export async function toggleLessonCompleted(lessonId: string, completed: boolean
 
   revalidatePath("/inicio");
   revalidatePath("/modulos");
+  revalidatePath("/progresso");
   revalidatePath(`/aula/${lessonId}`);
 
   return { ok: true as const, completed };

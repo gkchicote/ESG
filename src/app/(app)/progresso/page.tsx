@@ -1,0 +1,189 @@
+import type { Metadata } from "next";
+import { Sparkles, Trophy } from "lucide-react";
+import { requireSession } from "@/lib/auth/session";
+import { getEnrolledCourse, listScoreboard } from "@/lib/db/queries";
+import { formatLastAccess, initials } from "@/lib/format";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { EmptyState } from "@/components/app/empty-state";
+import { cn } from "@/lib/utils";
+
+export const metadata: Metadata = { title: "Progresso" };
+
+/**
+ * Placar da turma — aberto a qualquer aluno matriculado.
+ *
+ * A lista é do curso de quem está olhando: comparar-se com quem estuda outra
+ * coisa não diz nada. Só nome, módulo atual e pontos vão para a tela; e-mail,
+ * percentual e último login continuam restritos a /admin.
+ */
+export default async function ProgressPage() {
+  const session = await requireSession();
+  const course = await getEnrolledCourse(session.sub);
+
+  if (!course) {
+    return (
+      <EmptyState
+        title="Nenhum curso liberado ainda"
+        description="Assim que sua matrícula for ativada, você entra no placar da turma."
+      />
+    );
+  }
+
+  const rows = await listScoreboard(course.id);
+  const me = rows.find((row) => row.profile_id === session.sub);
+  // Posição no placar contando empates: dois com 40 pontos dividem o 1º lugar
+  // e o próximo é 3º. Sem isto, quem empata vê números diferentes na tela.
+  const rankOf = (points: number) => rows.filter((row) => row.points > points).length + 1;
+
+  return (
+    <div className="mx-auto w-full max-w-4xl px-5 py-10 sm:px-8 sm:py-14">
+      <header className="mb-8 space-y-1.5">
+        <p className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium tracking-[0.12em] uppercase">
+          <Trophy className="size-3.5" />
+          Progresso da turma
+        </p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          Você não está estudando sozinho
+        </h1>
+        <p className="text-muted-foreground max-w-2xl text-[15px] leading-relaxed">
+          Cada aula concluída vale <span className="text-foreground font-medium">1 ponto</span>.
+          Veja em que módulo cada pessoa de {course.title} está e quanto já somou.
+        </p>
+      </header>
+
+      {/* Onde eu estou ---------------------------------------------- */}
+      {me && (
+        <section
+          aria-label="Sua posição"
+          className="bg-brand text-brand-foreground mb-6 flex flex-wrap items-center gap-x-8 gap-y-4 rounded-2xl px-7 py-6"
+        >
+          <div>
+            <p className="text-[11px] font-semibold tracking-[0.14em] text-white/70 uppercase">
+              Sua posição
+            </p>
+            <p className="tabular mt-1 text-2xl font-semibold tracking-tight">
+              {rankOf(me.points)}º
+              <span className="ml-1.5 text-sm font-normal text-white/70">de {rows.length}</span>
+            </p>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-semibold tracking-[0.14em] text-white/70 uppercase">
+              Seus pontos
+            </p>
+            <p className="tabular mt-1 text-2xl font-semibold tracking-tight">{me.points}</p>
+          </div>
+
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold tracking-[0.14em] text-white/70 uppercase">
+              Módulo atual
+            </p>
+            <p className="mt-1 truncate text-[15px] font-medium">
+              {me.module_title ?? "Ainda não começou"}
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* Placar ------------------------------------------------------ */}
+      <div className="overflow-hidden rounded-xl border">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12 text-center">#</TableHead>
+                <TableHead>Aluno</TableHead>
+                <TableHead>Módulo atual</TableHead>
+                <TableHead className="text-right">Pontos</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => {
+                const rank = rankOf(row.points);
+                const isMe = row.profile_id === session.sub;
+
+                return (
+                  <TableRow key={row.profile_id} className={cn(isMe && "bg-brand-soft/40")}>
+                    <TableCell className="text-center">
+                      {/* O pódio ganha a taça; do 4º em diante, só o número. */}
+                      {rank <= 3 && row.points > 0 ? (
+                        <Trophy
+                          className={cn(
+                            "mx-auto size-4",
+                            rank === 1 && "text-brand",
+                            rank > 1 && "text-muted-foreground",
+                          )}
+                          strokeWidth={1.75}
+                          aria-label={`${rank}º lugar`}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground tabular text-sm">{rank}</span>
+                      )}
+                    </TableCell>
+
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="size-8 shrink-0">
+                          <AvatarFallback className="bg-brand-soft text-brand text-[11px] font-semibold">
+                            {initials(row.full_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-medium">{row.full_name}</p>
+                            {isMe && (
+                              <Badge variant="secondary" className="shrink-0 text-[10px]">
+                                Você
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-muted-foreground text-xs">
+                            {formatLastAccess(row.last_accessed_at)}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      {row.module_title ? (
+                        <div className="min-w-0">
+                          <p className="text-muted-foreground text-xs font-medium tracking-wide">
+                            MÓDULO {row.module_position}
+                          </p>
+                          <p className="truncate text-sm">{row.module_title}</p>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Ainda não começou</span>
+                      )}
+                    </TableCell>
+
+                    <TableCell className="text-right">
+                      <span className="tabular inline-flex items-center gap-1.5 text-sm font-semibold">
+                        <Sparkles className="text-brand size-3.5" strokeWidth={1.75} />
+                        {row.points}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <p className="text-muted-foreground mt-4 text-sm">
+        O ponto é somado assim que a aula é concluída e não é perdido depois — o placar só anda
+        para a frente.
+      </p>
+    </div>
+  );
+}

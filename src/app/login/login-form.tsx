@@ -1,22 +1,36 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Eye, EyeOff, Loader2, LogIn } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import { signIn, type LoginState } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 
 export function LoginForm() {
   const searchParams = useSearchParams();
   const [state, formAction, pending] = useActionState<LoginState, FormData>(signIn, {});
   const [showPassword, setShowPassword] = useState(false);
 
+  // De onde a pessoa vem depois de trocar a senha: a confirmação precisa
+  // aparecer aqui, já que o fluxo termina sem criar sessão.
+  const justReset = searchParams.get("senha") === "redefinida";
+
   return (
     <form action={formAction} className="space-y-5" noValidate>
       <input type="hidden" name="next" value={searchParams.get("next") ?? ""} />
+
+      {justReset && (
+        <div
+          role="status"
+          className="border-success/30 bg-success-soft/50 flex items-start gap-2.5 rounded-lg border px-3.5 py-3 text-sm"
+        >
+          <CheckCircle2 className="text-success mt-0.5 size-4 shrink-0" strokeWidth={1.75} />
+          <span>Senha redefinida. Entre com ela agora.</span>
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="email">E-mail</Label>
@@ -36,7 +50,15 @@ export function LoginForm() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="password">Senha</Label>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="password">Senha</Label>
+          <Link
+            href="/esqueci-senha"
+            className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 transition-colors hover:underline"
+          >
+            Esqueci minha senha
+          </Link>
+        </div>
         <div className="relative">
           <Input
             id="password"
@@ -84,8 +106,8 @@ export function LoginForm() {
         )}
       </Button>
 
-      <p className={cn("text-muted-foreground text-center text-sm")}>
-        Esqueceu a senha?{" "}
+      <p className="text-muted-foreground text-center text-sm">
+        Problemas para entrar?{" "}
         <a
           href="mailto:suporte@fluently.com.br"
           className="text-foreground underline-offset-4 hover:underline"

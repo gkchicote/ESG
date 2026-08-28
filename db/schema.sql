@@ -87,6 +87,8 @@ create table if not exists enrollments (
   enrolled_at      timestamptz not null default now(),
   last_accessed_at timestamptz,
   last_lesson_id   uuid references lessons(id) on delete set null,
+  -- Módulo em que a pessoa está agora — alimenta o placar de /progresso.
+  current_module_id uuid references modules(id) on delete set null,
   expires_at       timestamptz,
   unique (profile_id, course_id)
 );
@@ -101,6 +103,18 @@ create table if not exists lesson_progress (
   watched_seconds       int not null default 0,
   updated_at            timestamptz not null default now(),
   unique (profile_id, lesson_id)
+);
+
+-- ---------- Gamificação ----------------------------------------------
+-- 1 ponto por aula concluída. Um registro por ponto, não um contador: a
+-- chave primária composta é o que impede a mesma aula de pagar duas vezes.
+-- O ponto é ganho uma vez e fica — desmarcar a aula depois não o devolve.
+create table if not exists lesson_points (
+  profile_id uuid not null references profiles(id) on delete cascade,
+  lesson_id  uuid not null references lessons(id) on delete cascade,
+  points     int  not null default 1,
+  awarded_at timestamptz not null default now(),
+  primary key (profile_id, lesson_id)
 );
 
 -- ---------- Convites -------------------------------------------------
@@ -119,6 +133,19 @@ create table if not exists invites (
   used_at    timestamptz
 );
 
+-- ---------- Recuperação de senha -------------------------------------
+-- Guarda o SHA-256 do token, nunca o token em si: quem lê o banco (backup,
+-- dump, log de query) não consegue redefinir a senha de ninguém. O valor cru
+-- só existe dentro do link enviado por e-mail.
+create table if not exists password_resets (
+  id         uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references profiles(id) on delete cascade,
+  token_hash text not null unique,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  used_at    timestamptz
+);
+
 -- ---------- Índices -------------------------------------------------
 create index if not exists modules_course_idx    on modules (course_id, position);
 create index if not exists lessons_module_idx    on lessons (module_id, position);
@@ -127,6 +154,8 @@ create index if not exists materials_module_idx  on materials (module_id);
 create index if not exists progress_profile_idx  on lesson_progress (profile_id);
 create index if not exists enrollments_prof_idx  on enrollments (profile_id);
 create index if not exists invites_token_idx     on invites (token);
+create index if not exists lesson_points_profile_idx on lesson_points (profile_id);
+create index if not exists password_resets_profile_idx on password_resets (profile_id);
 
 -- Bancos criados antes dos slugs: o `create table if not exists` acima não
 -- adiciona colunas novas, então o ALTER cobre esse caso. Idempotente.
@@ -168,3 +197,27 @@ join lessons l on l.module_id = m.id        and l.is_published
 left join lesson_progress lp
        on lp.lesson_id = l.id and lp.profile_id = e.profile_id
 group by e.profile_id, e.course_id;
+
+-- ---------- Placar de progresso (aba /progresso) ---------------------
+-- Nome, módulo atual e total de pontos de cada aluno, por curso. Os pontos
+-- vêm de subconsulta em vez de join para não multiplicar linha com o join de
+-- `modules`, e ficam restritos ao curso da matrícula.
+create or replace view student_scoreboard as
+select p.id         as profile_id,
+       p.full_name,
+       p.avatar_url,
+       e.course_id,
+       coalesce((select sum(pt.points)
+                   from lesson_points pt
+                   join lessons lx on lx.id = pt.lesson_id
+                   join modules mx on mx.id = lx.module_id
+                  where pt.profile_id = p.id
+                    and mx.course_id  = e.course_id), 0)::int as points,
+       m.id       as module_id,
+       m.position as module_position,
+       m.title    as module_title,
+       e.last_accessed_at
+  from enrollments e
+  join profiles p on p.id = e.profile_id
+  left join modules m on m.id = e.current_module_id
+ where e.expires_at is null or e.expires_at > now();

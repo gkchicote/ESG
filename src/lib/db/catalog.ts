@@ -211,6 +211,68 @@ function jackAndTheBeanstalk(number: number): { materials: MaterialSeed[]; audio
   });
 }
 
+/** Anexos das aulas de The Boy Who Flew Too High (módulo 05). */
+function theBoyWhoFlewTooHigh(number: number): { materials: MaterialSeed[]; audios: AudioSeed[] } {
+  const n = String(number).padStart(2, "0");
+  return storyMaterials({
+    dir: `F-MODULO05/Módulo 05/The Boy Who Flew Too High ${n}`,
+    // O PDF é o único que escreve "who" e "too" em minúscula; a pasta usa as
+    // duas maiúsculas e o áudio mistura os dois jeitos ("Who ... too").
+    pdf: `PDF The Boy who Flew too High ${n}.pdf`,
+    // E o .zip encurta o título: só "The Boy Who Flew", sem o "Too High".
+    zip: `The Boy Who Flew ${n} Audios para o Anki.zip`,
+    audio: (voice) => `AUDIO The Boy Who Flew too High ${n} ${voice}.mp3`,
+    voices: ["Natalie", "Peter", "Zoe"],
+  });
+}
+
+/** Anexos das aulas de The Bell of Atri (módulo 06). */
+function theBellOfAtri(number: number): { materials: MaterialSeed[]; audios: AudioSeed[] } {
+  const n = String(number).padStart(2, "0");
+  return storyMaterials({
+    // A pasta da aula tem **dois** espaços antes do número ("Atri  01"). Foi
+    // assim que ela subiu para o bucket; é assim que a chave precisa ser.
+    dir: `F-MODULO06/Módulo 06/The Bell of Atri  ${n}`,
+    pdf: `PDF The Bell of Atri ${n}.pdf`,
+    // Aqui o .zip é "para Anki", sem o "o" que os módulos anteriores usam.
+    zip: `The Bell of Atri ${n} Audios para Anki.zip`,
+    audio: (voice) => `AUDIO The Bell of Atri ${n} ${voice}.mp3`,
+    voices: ["Charlie", "Kathy", "Peter", "Zoe"],
+  });
+}
+
+/**
+ * Texto e áudio completos da história — módulos 05 e 06.
+ *
+ * Os dois trazem, além dos arquivos aula a aula, uma pasta com a história
+ * inteira: um PDF único e a gravação corrida de cada voz. Não é material de
+ * nenhuma aula em particular, então vai na conclusão do módulo, onde o aluno
+ * chega com a história toda estudada — mesmo papel que o baralho do Anki tem
+ * na aula 01 dos módulos 02 a 04. Estes dois módulos não têm baralho.
+ */
+function completeStory({
+  dir,
+  pdf,
+  audio,
+  voices,
+}: {
+  /** Pasta dos arquivos completos no bucket. */
+  dir: string;
+  /** Nome do PDF com a história inteira, dentro de `dir`. */
+  pdf: string;
+  /** Nome do MP3 corrido de uma voz, dentro de `dir`. */
+  audio: (voice: string) => string;
+  /** Narradores, na ordem em que aparecem no player. */
+  voices: string[];
+}): { materials: MaterialSeed[]; audios: AudioSeed[] } {
+  return {
+    materials: [
+      { title: "Texto completo da história", file: `${dir}/${pdf}`, type: "pdf", storage: "r2" },
+    ],
+    audios: voices.map((voice) => ({ voice, file: `${dir}/${audio(voice)}`, storage: "r2" as const })),
+  };
+}
+
 /** O curso em si. O sync cria a linha em `courses` se ela ainda não existir. */
 export const COURSE = {
   slug: "ingles-do-zero-a-fluencia",
@@ -298,6 +360,63 @@ export const CURRICULUM: ModuleSeed[] = [
       { slug: "jack-and-the-beanstalk-05", title: "Aula 05 - Jack and the Beanstalk", description: "", seconds: 725, video: r2("F-MODULO04/M04V33 Jack and the Beanstalk 05_comprimido.mp4"), ...jackAndTheBeanstalk(5) },
       { slug: "jack-and-the-beanstalk-06", title: "Aula 06 - Jack and the Beanstalk", description: "", seconds: 1365, video: r2("F-MODULO04/M04V34 Jack and the Beanstalk 06_comprimido.mp4"), ...jackAndTheBeanstalk(6) },
       { slug: "jack-and-the-beanstalk-conclusao", title: "Conclusão do Módulo 04", description: "", seconds: 147, video: r2("F-MODULO04/M04V35 Conclusão do Módulo 04_comprimido.mp4") },
+    ],
+  },
+  {
+    slug: "the-boy-who-flew-too-high",
+    title: "The Boy Who Flew Too High",
+    description: "A história de The Boy Who Flew Too High, em sete aulas.",
+    lessons: [
+      { slug: "the-boy-who-flew-too-high-instrucoes", title: "Instruções do Módulo 05", description: "", seconds: 345, video: r2("F-MODULO05/M05V36 Instruções do Módulo 05_comprimido.mp4") },
+      { slug: "the-boy-who-flew-too-high-01", title: "Aula 01 - The Boy Who Flew Too High", description: "", seconds: 1846, video: r2("F-MODULO05/M05V37 The Boy Who Flew Too High 01_comprimido.mp4"), ...theBoyWhoFlewTooHigh(1) },
+      { slug: "the-boy-who-flew-too-high-02", title: "Aula 02 - The Boy Who Flew Too High", description: "", seconds: 1887, video: r2("F-MODULO05/M05V38 The Boy Who Flew Too High 02_comprimido.mp4"), ...theBoyWhoFlewTooHigh(2) },
+      { slug: "the-boy-who-flew-too-high-03", title: "Aula 03 - The Boy Who Flew Too High", description: "", seconds: 1650, video: r2("F-MODULO05/M05V39 The Boy Who Flew Too High 03_comprimido.mp4"), ...theBoyWhoFlewTooHigh(3) },
+      { slug: "the-boy-who-flew-too-high-04", title: "Aula 04 - The Boy Who Flew Too High", description: "", seconds: 1258, video: r2("F-MODULO05/M05V40 The Boy Who Flew Too High 04_comprimido.mp4"), ...theBoyWhoFlewTooHigh(4) },
+      { slug: "the-boy-who-flew-too-high-05", title: "Aula 05 - The Boy Who Flew Too High", description: "", seconds: 1428, video: r2("F-MODULO05/M05V41 The Boy Who Flew Too High 05_comprimido.mp4"), ...theBoyWhoFlewTooHigh(5) },
+      { slug: "the-boy-who-flew-too-high-06", title: "Aula 06 - The Boy Who Flew Too High", description: "", seconds: 1562, video: r2("F-MODULO05/M05V42 The Boy Who Flew Too High 06_comprimido.mp4"), ...theBoyWhoFlewTooHigh(6) },
+      { slug: "the-boy-who-flew-too-high-07", title: "Aula 07 - The Boy Who Flew Too High", description: "", seconds: 1178, video: r2("F-MODULO05/M05V43 The Boy Who Flew Too High 07_comprimido.mp4"), ...theBoyWhoFlewTooHigh(7) },
+      {
+        slug: "the-boy-who-flew-too-high-conclusao",
+        title: "Conclusão do Módulo 05",
+        description: "",
+        seconds: 401,
+        video: r2("F-MODULO05/M05V44 Conclusão do Módulo 05_comprimido.mp4"),
+        ...completeStory({
+          dir: "F-MODULO05/Módulo 05/The Boy Who Flew Too High Arquivos Completos",
+          pdf: "PDF The Boy Who Flew Too High Texto Completo.pdf",
+          audio: (voice) => `The Boy who Flew too High ${voice} Complete Audio.mp3`,
+          voices: ["Natalie", "Peter", "Zoe"],
+        }),
+      },
+    ],
+  },
+  {
+    slug: "the-bell-of-atri",
+    title: "The Bell of Atri",
+    description: "A história de The Bell of Atri, em oito aulas.",
+    lessons: [
+      { slug: "the-bell-of-atri-instrucoes", title: "Instruções do Módulo 06", description: "", seconds: 615, video: r2("F-MODULO06/M06V45 Instruções do Módulo 06_comprimido.mp4") },
+      { slug: "the-bell-of-atri-01", title: "Aula 01 - The Bell of Atri", description: "", seconds: 1690, video: r2("F-MODULO06/M06V46 The Bell of Atri 01_comprimido.mp4"), ...theBellOfAtri(1) },
+      { slug: "the-bell-of-atri-02", title: "Aula 02 - The Bell of Atri", description: "", seconds: 1212, video: r2("F-MODULO06/M06V47 The Bell of Atri 02_comprimido.mp4"), ...theBellOfAtri(2) },
+      { slug: "the-bell-of-atri-03", title: "Aula 03 - The Bell of Atri", description: "", seconds: 1629, video: r2("F-MODULO06/M06V48 The Bell of Atri 03_comprimido.mp4"), ...theBellOfAtri(3) },
+      { slug: "the-bell-of-atri-04", title: "Aula 04 - The Bell of Atri", description: "", seconds: 1005, video: r2("F-MODULO06/M06V49 The Bell of Atri 04_comprimido.mp4"), ...theBellOfAtri(4) },
+      { slug: "the-bell-of-atri-05", title: "Aula 05 - The Bell of Atri", description: "", seconds: 1337, video: r2("F-MODULO06/M06V50 The Bell of Atri 05_comprimido.mp4"), ...theBellOfAtri(5) },
+      { slug: "the-bell-of-atri-06", title: "Aula 06 - The Bell of Atri", description: "", seconds: 1662, video: r2("F-MODULO06/M06V51 The Bell of Atri 06_comprimido.mp4"), ...theBellOfAtri(6) },
+      { slug: "the-bell-of-atri-07", title: "Aula 07 - The Bell of Atri", description: "", seconds: 770, video: r2("F-MODULO06/M06V52 The Bell of Atri 07_comprimido.mp4"), ...theBellOfAtri(7) },
+      { slug: "the-bell-of-atri-08", title: "Aula 08 - The Bell of Atri", description: "", seconds: 1779, video: r2("F-MODULO06/M06V53 The Bell of Atri 08_comprimido.mp4"), ...theBellOfAtri(8) },
+      {
+        slug: "the-bell-of-atri-conclusao",
+        title: "Conclusão do Módulo 06",
+        description: "",
+        seconds: 148,
+        video: r2("F-MODULO06/M06V54 Conclusão do Módulo 06_comprimido.mp4"),
+        ...completeStory({
+          dir: "F-MODULO06/Módulo 06/The Bell of Atri Completo",
+          pdf: "PDF The Bell of Atri Texto Completo.pdf",
+          audio: (voice) => `The Bell of Atri ${voice} Complete Audio.mp3`,
+          voices: ["Charlie", "Kathy", "Peter", "Zoe"],
+        }),
+      },
     ],
   },
 ];

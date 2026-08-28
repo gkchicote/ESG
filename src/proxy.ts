@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth/jwt";
 
-// Rotas abertas: a landing e o login. Todo o resto exige sessão.
-const PUBLIC_PATHS = ["/", "/login", "/convite"];
+// Rotas abertas: a landing, o login, o convite e a recuperação de senha.
+// Todo o resto exige sessão.
+const PUBLIC_PATHS = ["/", "/login", "/convite", "/esqueci-senha", "/redefinir-senha"];
 
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

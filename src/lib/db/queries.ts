@@ -277,6 +277,28 @@ export function getLessonSequence(courseId: string) {
 /* Escrita de progresso                                                */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Gamificação: 1 ponto pela aula concluída.
+ *
+ * Vive aqui, e não na Server Action, porque toda conclusão passa por
+ * `saveProgress`/`setLessonCompleted` — pendurado nelas, nenhum caminho novo
+ * (o player marcando sozinho no fim do vídeo, o botão manual, um import
+ * futuro) pode esquecer de pontuar.
+ *
+ * `do nothing` no conflito faz o resto: a aula paga uma vez só, por mais que
+ * o player reenvie `completed: true` a cada gravação de posição. O ponto
+ * também não é devolvido quando o aluno desmarca a aula — ele já assistiu, e
+ * um placar que anda para trás a cada clique não incentiva ninguém.
+ */
+export async function awardLessonPoint(profileId: string, lessonId: string) {
+  await query(
+    `insert into lesson_points (profile_id, lesson_id)
+     values ($1, $2)
+     on conflict (profile_id, lesson_id) do nothing`,
+    [profileId, lessonId],
+  );
+}
+
 export async function saveProgress(
   profileId: string,
   lessonId: string,
@@ -295,6 +317,8 @@ export async function saveProgress(
             updated_at            = now()`,
     [profileId, lessonId, Math.max(0, Math.round(positionSeconds)), completed ?? null],
   );
+
+  if (completed) await awardLessonPoint(profileId, lessonId);
 }
 
 export async function setLessonCompleted(
@@ -311,9 +335,19 @@ export async function setLessonCompleted(
             updated_at   = now()`,
     [profileId, lessonId, completed],
   );
+
+  if (completed) await awardLessonPoint(profileId, lessonId);
 }
 
-/** Marca "último acesso" e a aula corrente — alimenta o card de continuar. */
+/**
+ * Marca "último acesso" e a aula corrente — alimenta o card de continuar e,
+ * pelo módulo da aula, a coluna "Módulo atual" do placar de /progresso.
+ *
+ * O módulo sai de subconsulta sobre a própria aula em vez de virar parâmetro:
+ * assim os três chamadores (player, beacon de saída e a página da aula)
+ * continuam passando só o `lessonId`, sem chance de mandar um módulo que não
+ * é o da aula.
+ */
 export async function touchEnrollment(
   profileId: string,
   courseId: string,
@@ -321,10 +355,46 @@ export async function touchEnrollment(
 ) {
   await query(
     `update enrollments
-        set last_accessed_at = now(),
-            last_lesson_id   = coalesce($3, last_lesson_id)
+        set last_accessed_at  = now(),
+            last_lesson_id    = coalesce($3, last_lesson_id),
+            current_module_id = coalesce(
+              (select l.module_id from lessons l where l.id = $3),
+              current_module_id
+            )
       where profile_id = $1 and course_id = $2`,
     [profileId, courseId, lessonId],
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Placar de progresso (aba /progresso)                                */
+/* ------------------------------------------------------------------ */
+
+export type ScoreboardRow = {
+  profile_id: string;
+  full_name: string;
+  points: number;
+  module_position: number | null;
+  module_title: string | null;
+  last_accessed_at: string | null;
+};
+
+/**
+ * Todo mundo matriculado no curso, do mais pontuado para o menos.
+ *
+ * Empate desempata por nome, e não por data: a ordem precisa ser a mesma a
+ * cada carregamento, senão a lista embaralha sozinha entre visitas.
+ *
+ * A view `student_scoreboard` já limita as linhas a matrículas válidas, então
+ * quem perdeu o acesso some do placar sem sumir do banco.
+ */
+export function listScoreboard(courseId: string) {
+  return query<ScoreboardRow>(
+    `select profile_id, full_name, points, module_position, module_title, last_accessed_at
+       from student_scoreboard
+      where course_id = $1
+      order by points desc, full_name asc`,
+    [courseId],
   );
 }
 
@@ -510,4 +580,81 @@ export function getInviteByToken(token: string) {
 
 export function markInviteUsed(id: string) {
   return query(`update invites set used_at = now() where id = $1`, [id]);
+}
+
+/* ------------------------------------------------------------------ */
+/* Recuperação de senha                                                */
+/* ------------------------------------------------------------------ */
+
+export type PasswordReset = {
+  id: string;
+  profile_id: string;
+  email: string;
+  full_name: string;
+  expires_at: string;
+  used_at: string | null;
+};
+
+/**
+ * Guarda um pedido de redefinição. Recebe o **hash** do token, nunca o token:
+ * quem monta o link é quem chamou (src/lib/auth/password-reset.ts).
+ */
+export async function createPasswordReset(input: {
+  profileId: string;
+  tokenHash: string;
+  expiresAt: Date;
+}) {
+  const row = await queryOne<{ id: string }>(
+    `insert into password_resets (profile_id, token_hash, expires_at)
+     values ($1, $2, $3) returning id`,
+    [input.profileId, input.tokenHash, input.expiresAt.toISOString()],
+  );
+  return row!;
+}
+
+/**
+ * Já existe um pedido recente e ainda em aberto para esta pessoa?
+ *
+ * O formulário de "esqueci minha senha" é público: sem esta trava, qualquer
+ * um digita o e-mail de um aluno em sequência e enche a caixa dele. Um pedido
+ * a cada `withinSeconds` é o bastante para o fluxo real, em que a pessoa pede
+ * uma vez e espera o e-mail chegar.
+ */
+export async function hasRecentPasswordReset(profileId: string, withinSeconds: number) {
+  const row = await queryOne<{ id: string }>(
+    `select id from password_resets
+      where profile_id = $1
+        and used_at is null
+        and created_at > now() - make_interval(secs => $2)
+      limit 1`,
+    [profileId, withinSeconds],
+  );
+  return row !== null;
+}
+
+/** O pedido correspondente ao hash, já com o dono junto. */
+export function getPasswordResetByHash(tokenHash: string) {
+  return queryOne<PasswordReset>(
+    `select pr.id, pr.profile_id, pr.expires_at, pr.used_at,
+            p.email, p.full_name
+       from password_resets pr
+       join profiles p on p.id = pr.profile_id
+      where pr.token_hash = $1`,
+    [tokenHash],
+  );
+}
+
+/**
+ * Fecha todos os pedidos em aberto da pessoa.
+ *
+ * Chamado depois de a senha ser trocada: se ela pediu o link três vezes, os
+ * outros dois e-mails param de valer no mesmo instante — senão um link antigo
+ * ainda na caixa de entrada continuaria abrindo a tela de nova senha.
+ */
+export function closePasswordResets(profileId: string) {
+  return query(
+    `update password_resets set used_at = now()
+      where profile_id = $1 and used_at is null`,
+    [profileId],
+  );
 }

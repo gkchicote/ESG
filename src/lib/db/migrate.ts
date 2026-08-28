@@ -46,4 +46,98 @@ export async function applyMigrations(exec: Exec): Promise<void> {
     `alter table materials add constraint materials_storage_provider_check
        check (storage_provider in ('file', 'r2'))`,
   );
+
+  // ---------------------------------------------------------------
+  //  Gamificação — 1 ponto por aula concluída
+  // ---------------------------------------------------------------
+
+  // Uma linha por ponto, e não um contador em `profiles`: a chave primária
+  // composta é o que garante que a mesma aula nunca pague duas vezes, sem
+  // depender de nenhum cuidado do lado do app. `points` é sempre 1 hoje, mas
+  // fica como coluna para o dia em que uma aula valer mais que outra.
+  await exec(
+    `create table if not exists lesson_points (
+       profile_id uuid not null references profiles(id) on delete cascade,
+       lesson_id  uuid not null references lessons(id) on delete cascade,
+       points     int  not null default 1,
+       awarded_at timestamptz not null default now(),
+       primary key (profile_id, lesson_id)
+     )`,
+  );
+  await exec(`create index if not exists lesson_points_profile_idx on lesson_points (profile_id)`);
+
+  // Quem concluiu aula antes da gamificação existir também tem direito ao
+  // ponto. Roda todo boot de propósito: é `on conflict do nothing`, então
+  // custa uma varredura e conserta sozinho qualquer ponto que tenha faltado.
+  await exec(
+    `insert into lesson_points (profile_id, lesson_id, awarded_at)
+     select lp.profile_id, lp.lesson_id, coalesce(lp.completed_at, lp.updated_at)
+       from lesson_progress lp
+      where lp.completed
+     on conflict (profile_id, lesson_id) do nothing`,
+  );
+
+  // Módulo onde o aluno está agora. Dá para deduzir de `last_lesson_id`, mas
+  // gravado ele sai de graça no placar (uma coluna, sem subconsulta) e
+  // sobrevive à aula sair do catálogo.
+  await exec(
+    `alter table enrollments add column if not exists current_module_id uuid
+       references modules(id) on delete set null`,
+  );
+  await exec(
+    `update enrollments e
+        set current_module_id = l.module_id
+       from lessons l
+      where l.id = e.last_lesson_id and e.current_module_id is null`,
+  );
+
+  // Placar da aba "Progresso": nome, módulo atual e pontos, por curso.
+  // Os pontos vêm de subconsulta em vez de join para não multiplicar linha
+  // com o join de `modules` — e ficam limitados ao curso da matrícula.
+  //
+  // drop+create em vez de `create or replace`: o Postgres recusa o replace
+  // quando a lista de colunas muda, e esta view ainda vai crescer.
+  await exec(`drop view if exists student_scoreboard`);
+  await exec(
+    `create view student_scoreboard as
+     select p.id         as profile_id,
+            p.full_name,
+            p.avatar_url,
+            e.course_id,
+            coalesce((select sum(pt.points)
+                        from lesson_points pt
+                        join lessons lx on lx.id = pt.lesson_id
+                        join modules mx on mx.id = lx.module_id
+                       where pt.profile_id = p.id
+                         and mx.course_id  = e.course_id), 0)::int as points,
+            m.id       as module_id,
+            m.position as module_position,
+            m.title    as module_title,
+            e.last_accessed_at
+       from enrollments e
+       join profiles p on p.id = e.profile_id
+       left join modules m on m.id = e.current_module_id
+      where e.expires_at is null or e.expires_at > now()`,
+  );
+
+  // ---------------------------------------------------------------
+  //  Recuperação de senha
+  // ---------------------------------------------------------------
+
+  // Guarda o SHA-256 do token, nunca o token em si: quem lê o banco (backup,
+  // log de query, dump vazado) não consegue redefinir a senha de ninguém. O
+  // valor cru existe só dentro do link que vai no e-mail.
+  await exec(
+    `create table if not exists password_resets (
+       id         uuid primary key default gen_random_uuid(),
+       profile_id uuid not null references profiles(id) on delete cascade,
+       token_hash text not null unique,
+       created_at timestamptz not null default now(),
+       expires_at timestamptz not null,
+       used_at    timestamptz
+     )`,
+  );
+  await exec(
+    `create index if not exists password_resets_profile_idx on password_resets (profile_id)`,
+  );
 }

@@ -1,7 +1,8 @@
 # Fluently — Plataforma de Estudos de Inglês (LMS)
 
-Aplicação de curso online: login, dashboard com progresso, módulos em accordion
-e player de aula com material em PDF.
+Aplicação de curso online: login, dashboard com progresso, módulos em accordion,
+player de aula com material em PDF, placar de progresso da turma e recuperação
+de senha por e-mail.
 
 ---
 
@@ -15,7 +16,8 @@ npm run dev
 Abra <http://localhost:3000>.
 
 Na primeira execução o banco local é criado e populado automaticamente com um
-curso de demonstração (5 módulos, 18 aulas, 10 PDFs).
+curso de demonstração (6 módulos, 48 aulas, com vídeo, PDF, áudio e baralhos
+do Anki servidos do Cloudflare R2).
 
 **Acesso de demonstração**
 
@@ -60,11 +62,15 @@ src/app/login/             Tela de login
 src/app/(app)/inicio/      Dashboard
 src/app/(app)/modulos/     Módulos em accordion
 src/app/(app)/aula/[id]/   Player + lista lateral
+src/app/(app)/progresso/   Placar da turma (nome, módulo atual e pontos)
+src/app/esqueci-senha/     Pedido de recuperação de senha
+src/app/redefinir-senha/   Tela de nova senha (a partir do token do e-mail)
 src/app/api/video/[id]/    Streaming com suporte a Range
 src/app/api/materials/[id] Entrega de anexos e áudio (Range) com checagem de matrícula
 src/app/api/progress/      Gravação final da posição (sendBeacon)
 src/lib/db/                Driver, queries e seed
-src/lib/auth/              Sessão, hash de senha e Server Actions
+src/lib/auth/              Sessão, hash de senha, token de recuperação e Server Actions
+src/lib/email.ts           Envio SMTP (nodemailer), com fallback no console
 src/proxy.ts               Proteção de rotas (antigo middleware)
 ```
 
@@ -72,12 +78,26 @@ src/proxy.ts               Proteção de rotas (antigo middleware)
 
 ```
 profiles ──< enrollments >── courses ──< modules ──< lessons ──< materials
-    └──────< lesson_progress >───────────────────────────┘
+    ├──────< lesson_progress >───────────────────────────┤
+    ├──────< lesson_points   >───────────────────────────┘
+    └──────< password_resets >
 ```
 
 - `enrollments.last_lesson_id` + `last_accessed_at` alimentam o card
   "continuar de onde parou" e o indicador de último acesso.
+- `enrollments.current_module_id` é o módulo atual mostrado em `/progresso`.
 - `lesson_progress.last_position_seconds` retoma o vídeo no segundo exato.
+- `lesson_points` é o placar: 1 ponto por aula concluída, uma linha por ponto.
+  A chave primária `(profile_id, lesson_id)` é o que impede a mesma aula de
+  pagar duas vezes; o ponto é ganho uma vez e não é devolvido se o aluno
+  desmarcar a aula depois. A view `student_scoreboard` junta pontos, módulo
+  atual e nome para a tela.
+- `password_resets` guarda o **SHA-256** do token, nunca o token — o valor cru
+  existe só dentro do link enviado por e-mail, vale 1 hora e serve uma vez.
+
+Toda mudança de schema mora em `src/lib/db/migrate.ts`, aplicada no boot de
+qualquer driver e também ao publicar o catálogo. `db/schema.sql` é o espelho
+para quem cria o banco do zero.
 - A view `course_progress` calcula a barra de 0 a 100% em SQL.
 
 ---
@@ -263,7 +283,11 @@ Use `--curso <slug>` para escolher outro e `--papel admin` para um administrador
 3. **Vídeo** — suba os MP4 para o bucket do Cloudflare R2 e preencha as quatro
    variáveis `R2_*`. O bucket fica privado e a saída de dados do R2 não é
    cobrada, então o número de alunos não mexe na conta.
-4. **Deploy** — Vercel. `content/pdfs` e o que estiver em `content/materials`
+4. **E-mail** — para a recuperação de senha funcionar, preencha `SMTP_HOST`,
+   `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` e `EMAIL_FROM` (a caixa do próprio
+   domínio serve). Sem `SMTP_HOST` nada quebra, mas o link de recuperação só
+   aparece no log do servidor — ninguém recebe e-mail.
+5. **Deploy** — Vercel. `content/pdfs` e o que estiver em `content/materials`
    com `storage: "file"` cabem no repositório; para anexos maiores (áudio,
    PDFs pesados), prefira `storage: "r2"` — sobe uma vez para o mesmo bucket
    do vídeo e nenhum arquivo depende do disco do servidor ou do volume do

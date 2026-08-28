@@ -11,7 +11,9 @@ create table if not exists profiles (
   full_name     text not null,
   avatar_url    text,
   role          text not null default 'student' check (role in ('student', 'admin')),
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+  -- Quando a pessoa entrou na plataforma pela última vez (login efetivado).
+  last_login_at timestamptz
 );
 
 -- ---------- Conteúdo ------------------------------------------------
@@ -139,6 +141,9 @@ create unique index if not exists lessons_module_slug_idx on lessons (module_id,
 alter table lessons drop constraint if exists lessons_video_provider_check;
 alter table lessons add constraint lessons_video_provider_check
   check (video_provider in ('file', 'r2', 'url', 'bunny', 'youtube', 'vimeo', 'drive'));
+
+-- Bancos criados antes do registro de login: coluna nova em profiles.
+alter table profiles add column if not exists last_login_at timestamptz;
 
 -- Bancos criados antes do storage_provider de materials: idem, coluna nova.
 alter table materials add column if not exists storage_provider text not null default 'file';

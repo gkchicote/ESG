@@ -44,6 +44,25 @@ export function formatLastAccess(value: string | Date | null): string {
   return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/**
+ * "28/08/2026 14:32" — data e hora cheias do último login, no fuso de Brasília.
+ * O servidor roda em UTC no deploy; fixar o fuso evita mostrar hora errada.
+ */
+export function formatLoginAt(value: string | Date | null): string {
+  if (!value) return "nunca acessou";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "nunca acessou";
+
+  return date.toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? fullName;
 }

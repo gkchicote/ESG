@@ -4,7 +4,13 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSessionCookie } from "@/lib/auth/session";
-import { createUserWithEnrollment, emailExists, getInviteByToken, markInviteUsed } from "@/lib/db/queries";
+import {
+  createUserWithEnrollment,
+  emailExists,
+  getInviteByToken,
+  markInviteUsed,
+  touchLastLogin,
+} from "@/lib/db/queries";
 
 export type AcceptInviteState = { error?: string };
 
@@ -48,6 +54,7 @@ export async function acceptInvite(
   });
 
   await markInviteUsed(invite.id);
+  await touchLastLogin(profile.id);
 
   await createSessionCookie({
     sub: profile.id,

@@ -3,7 +3,7 @@
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { getProfileByEmail } from "@/lib/db/queries";
+import { getProfileByEmail, touchLastLogin } from "@/lib/db/queries";
 import { createSessionCookie } from "./session";
 
 const LoginSchema = z.object({
@@ -37,6 +37,8 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
   if (!profile || !ok) {
     return { error: "E-mail ou senha incorretos." };
   }
+
+  await touchLastLogin(profile.id);
 
   await createSessionCookie({
     sub: profile.id,

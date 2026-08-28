@@ -72,6 +72,11 @@ export function getProfileByEmail(email: string) {
   );
 }
 
+/** Carimba o login. Chamado quando a sessão é criada (entrada ou convite). */
+export async function touchLastLogin(profileId: string) {
+  await query(`update profiles set last_login_at = now() where id = $1`, [profileId]);
+}
+
 export function getProfileById(id: string) {
   return queryOne<Profile>(
     `select id, email, full_name, avatar_url, role from profiles where id = $1`,
@@ -337,6 +342,7 @@ export type AdminUserRow = {
   course_title: string | null;
   percent: number | null;
   last_accessed_at: string | null;
+  last_login_at: string | null;
 };
 
 export type CourseOption = { id: string; title: string };
@@ -354,7 +360,8 @@ export function listUsers() {
             e.course_id,
             c.title as course_title,
             cp.percent,
-            e.last_accessed_at
+            e.last_accessed_at,
+            p.last_login_at
        from profiles p
        left join enrollments e on e.profile_id = p.id
        left join courses c     on c.id = e.course_id

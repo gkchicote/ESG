@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { BookOpen, ShieldCheck } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
 import { countCourseContent, listCourses, listUsers } from "@/lib/db/queries";
-import { formatLastAccess, initials } from "@/lib/format";
+import { formatLoginAt, initials } from "@/lib/format";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -150,8 +150,8 @@ export default async function AdminUsersPage() {
                     )}
                   </TableCell>
 
-                  <TableCell className="text-muted-foreground text-sm">
-                    {formatLastAccess(user.last_accessed_at)}
+                  <TableCell className="tabular text-muted-foreground text-sm whitespace-nowrap">
+                    {formatLoginAt(user.last_login_at)}
                   </TableCell>
 
                   <TableCell>

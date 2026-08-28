@@ -34,6 +34,9 @@ export async function applyMigrations(exec: Exec): Promise<void> {
        check (video_provider in ('file', 'r2', 'url', 'bunny', 'youtube', 'vimeo', 'drive'))`,
   );
 
+  // Data/hora do último login — coluna lida pela tabela de usuários do admin.
+  await exec(`alter table profiles add column if not exists last_login_at timestamptz`);
+
   // Onde cada material mora: disco do servidor ou bucket do R2.
   await exec(
     `alter table materials add column if not exists storage_provider text not null default 'file'`,

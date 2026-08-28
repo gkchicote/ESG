@@ -67,8 +67,8 @@ export function CreateUserDialog({ courses }: { courses: CourseOption[] }) {
         <DialogHeader>
           <DialogTitle>Convidar usuário</DialogTitle>
           <DialogDescription>
-            Gera um link de convite para o e-mail informado. Quem recebe define a própria senha —
-            você não fica sabendo qual é.
+            Você escolhe o perfil e o curso; o resto é com quem recebe o link — nome, e-mail e
+            senha são preenchidos por ele, e você não fica sabendo a senha.
           </DialogDescription>
         </DialogHeader>
 
@@ -91,16 +91,6 @@ export function CreateUserDialog({ courses }: { courses: CourseOption[] }) {
           </div>
         ) : (
           <form ref={formRef} action={formAction} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Nome completo (opcional)</Label>
-              <Input id="fullName" name="fullName" placeholder="Ana Duarte" />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input id="email" name="email" type="email" placeholder="ana@email.com" required />
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="role">Perfil</Label>

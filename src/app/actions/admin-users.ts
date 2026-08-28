@@ -10,7 +10,6 @@ import {
   countAdmins,
   createInvite,
   deleteUser,
-  emailExists,
   getUserById,
   updateUserPassword,
 } from "@/lib/db/queries";
@@ -20,15 +19,14 @@ export type ActionState = { error?: string; success?: string; link?: string };
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
 
 const CreateInviteSchema = z.object({
-  email: z.string().trim().min(1, "Informe o e-mail.").email("E-mail inválido."),
-  fullName: z.string().trim().optional(),
   role: z.enum(["student", "admin"]),
   courseId: z.string().uuid().optional().or(z.literal("")),
 });
 
 /**
- * Gera um link de convite em vez de criar a senha diretamente — o admin
- * nunca chega a ver a senha, quem preenche é o próprio convidado.
+ * Gera só o link de convite. O admin define o que é decisão dele — perfil e
+ * curso — e nada mais: nome, e-mail e senha são preenchidos por quem recebe
+ * o link, então o admin nunca vê a senha nem precisa saber o e-mail antes.
  */
 export async function createUserInvite(
   _prev: ActionState,
@@ -37,8 +35,6 @@ export async function createUserInvite(
   const session = await requireAdmin();
 
   const parsed = CreateInviteSchema.safeParse({
-    email: formData.get("email"),
-    fullName: formData.get("fullName"),
     role: formData.get("role") || "student",
     courseId: formData.get("courseId") || "",
   });
@@ -47,15 +43,9 @@ export async function createUserInvite(
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
 
-  if (await emailExists(parsed.data.email)) {
-    return { error: "Já existe um usuário com este e-mail." };
-  }
-
   const token = randomBytes(24).toString("base64url");
   await createInvite({
     token,
-    email: parsed.data.email,
-    fullName: parsed.data.fullName?.trim() || null,
     role: parsed.data.role,
     courseId: parsed.data.courseId || null,
     createdBy: session.sub,
@@ -68,7 +58,7 @@ export async function createUserInvite(
   const link = `${proto}://${host}/convite/${token}`;
 
   revalidatePath("/admin");
-  return { success: `Convite gerado para ${parsed.data.email}.`, link };
+  return { success: "Link de convite gerado.", link };
 }
 
 const ChangePasswordSchema = z.object({

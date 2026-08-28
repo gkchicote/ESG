@@ -105,16 +105,6 @@ export function LoginForm() {
           </>
         )}
       </Button>
-
-      <p className="text-muted-foreground text-center text-sm">
-        Problemas para entrar?{" "}
-        <a
-          href="mailto:suporte@fluently.com.br"
-          className="text-foreground underline-offset-4 hover:underline"
-        >
-          Fale com o suporte
-        </a>
-      </p>
     </form>
   );
 }

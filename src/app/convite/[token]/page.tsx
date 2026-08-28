@@ -53,11 +53,15 @@ export default async function AcceptInvitePage({
                   Crie seu acesso
                 </h1>
                 <p className="text-muted-foreground text-[15px] leading-relaxed">
-                  Defina seu nome e uma senha para <span className="font-medium">{invite.email}</span>.
+                  Preencha seu nome, seu e-mail e uma senha para criar seu acesso.
                 </p>
               </header>
 
-              <AcceptInviteForm token={token} fullName={invite.full_name ?? ""} />
+              <AcceptInviteForm
+                token={token}
+                fullName={invite.full_name ?? ""}
+                email={invite.email ?? ""}
+              />
             </>
           )}
         </div>

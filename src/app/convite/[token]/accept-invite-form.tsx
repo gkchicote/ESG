@@ -7,7 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function AcceptInviteForm({ token, fullName }: { token: string; fullName: string }) {
+export function AcceptInviteForm({
+  token,
+  fullName,
+  email,
+}: {
+  token: string;
+  fullName: string;
+  email: string;
+}) {
   const [state, formAction, pending] = useActionState<AcceptInviteState, FormData>(
     acceptInvite,
     {},
@@ -27,6 +35,19 @@ export function AcceptInviteForm({ token, fullName }: { token: string; fullName:
           defaultValue={fullName}
           autoComplete="name"
           autoFocus
+          className="h-11"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="email">E-mail</Label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="ana@email.com"
+          defaultValue={email}
+          autoComplete="email"
           className="h-11"
         />
       </div>

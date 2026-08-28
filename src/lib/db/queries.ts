@@ -537,7 +537,8 @@ export function countAdmins() {
 export type Invite = {
   id: string;
   token: string;
-  email: string;
+  /** Nulo nos convites novos: o e-mail chega no aceite, não na geração. */
+  email: string | null;
   full_name: string | null;
   role: "student" | "admin";
   course_id: string | null;
@@ -547,25 +548,15 @@ export type Invite = {
 
 export async function createInvite(input: {
   token: string;
-  email: string;
-  fullName: string | null;
   role: "student" | "admin";
   courseId: string | null;
   createdBy: string;
   expiresAt: Date;
 }) {
   const invite = await queryOne<{ id: string }>(
-    `insert into invites (token, email, full_name, role, course_id, created_by, expires_at)
-     values ($1, $2, $3, $4, $5, $6, $7) returning id`,
-    [
-      input.token,
-      input.email.toLowerCase(),
-      input.fullName,
-      input.role,
-      input.courseId,
-      input.createdBy,
-      input.expiresAt.toISOString(),
-    ],
+    `insert into invites (token, role, course_id, created_by, expires_at)
+     values ($1, $2, $3, $4, $5) returning id`,
+    [input.token, input.role, input.courseId, input.createdBy, input.expiresAt.toISOString()],
   );
   return invite!;
 }

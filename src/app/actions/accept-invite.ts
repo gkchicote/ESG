@@ -17,10 +17,14 @@ export type AcceptInviteState = { error?: string };
 const AcceptInviteSchema = z.object({
   token: z.string().min(1),
   fullName: z.string().trim().min(2, "Informe o nome completo."),
+  email: z.string().trim().min(1, "Informe o e-mail.").email("E-mail inválido."),
   password: z.string().min(6, "A senha precisa ter pelo menos 6 caracteres."),
 });
 
-/** Rota pública: quem recebeu o link preenche nome + senha e o acesso é criado na hora. */
+/**
+ * Rota pública: quem recebeu o link preenche nome, e-mail e senha, e o acesso
+ * é criado na hora. O convite não traz e-mail — o admin só gerou o link.
+ */
 export async function acceptInvite(
   _prev: AcceptInviteState,
   formData: FormData,
@@ -28,6 +32,7 @@ export async function acceptInvite(
   const parsed = AcceptInviteSchema.safeParse({
     token: formData.get("token"),
     fullName: formData.get("fullName"),
+    email: formData.get("email"),
     password: formData.get("password"),
   });
 
@@ -40,13 +45,13 @@ export async function acceptInvite(
   if (invite.used_at) return { error: "Este convite já foi usado." };
   if (new Date(invite.expires_at) < new Date()) return { error: "Este convite expirou." };
 
-  if (await emailExists(invite.email)) {
+  if (await emailExists(parsed.data.email)) {
     return { error: "Já existe um usuário com este e-mail." };
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
   const profile = await createUserWithEnrollment({
-    email: invite.email,
+    email: parsed.data.email,
     fullName: parsed.data.fullName,
     passwordHash,
     role: invite.role,
@@ -58,7 +63,7 @@ export async function acceptInvite(
 
   await createSessionCookie({
     sub: profile.id,
-    email: invite.email,
+    email: parsed.data.email,
     name: parsed.data.fullName,
     role: invite.role,
   });

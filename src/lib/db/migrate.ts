@@ -140,4 +140,28 @@ export async function applyMigrations(exec: Exec): Promise<void> {
   await exec(
     `create index if not exists password_resets_profile_idx on password_resets (profile_id)`,
   );
+
+  // ---------------------------------------------------------------
+  //  Convites
+  // ---------------------------------------------------------------
+
+  // O admin só gera o link: quem recebe informa nome, e-mail e senha. Por
+  // isso `email` deixa de ser obrigatório — ele passa a ser preenchido no
+  // aceite, não na geração. Convites antigos mantêm o e-mail que já tinham.
+  await exec(
+    `create table if not exists invites (
+       id         uuid primary key default gen_random_uuid(),
+       token      text not null unique,
+       email      text,
+       full_name  text,
+       role       text not null default 'student' check (role in ('student', 'admin')),
+       course_id  uuid references courses(id) on delete set null,
+       created_by uuid not null references profiles(id) on delete cascade,
+       created_at timestamptz not null default now(),
+       expires_at timestamptz not null,
+       used_at    timestamptz
+     )`,
+  );
+  await exec(`create index if not exists invites_token_idx on invites (token)`);
+  await exec(`alter table invites alter column email drop not null`);
 }

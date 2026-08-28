@@ -118,12 +118,17 @@ create table if not exists lesson_points (
 );
 
 -- ---------- Convites -------------------------------------------------
--- Admin gera o link (sem definir senha); quem recebe preenche nome + senha
--- e o próprio convite cria o acesso — o admin nunca vê a senha do usuário.
+-- Admin só gera o link (define perfil e curso); quem recebe preenche nome,
+-- e-mail e senha, e o próprio convite cria o acesso — o admin nunca vê a
+-- senha nem precisa saber o e-mail de antemão.
+--
+-- `email` e `full_name` ficam nulos nos convites novos. Continuam na tabela
+-- porque convites antigos, gerados quando o admin informava o e-mail, ainda
+-- os têm — e o formulário de aceite usa esses valores como sugestão.
 create table if not exists invites (
   id         uuid primary key default gen_random_uuid(),
   token      text not null unique,
-  email      text not null,
+  email      text,
   full_name  text,
   role       text not null default 'student' check (role in ('student', 'admin')),
   course_id  uuid references courses(id) on delete set null,
@@ -176,6 +181,9 @@ alter table profiles add column if not exists last_login_at timestamptz;
 
 -- Bancos criados antes do storage_provider de materials: idem, coluna nova.
 alter table materials add column if not exists storage_provider text not null default 'file';
+
+-- Bancos criados antes do convite sem e-mail: o e-mail agora chega no aceite.
+alter table invites alter column email drop not null;
 alter table materials drop constraint if exists materials_storage_provider_check;
 alter table materials add constraint materials_storage_provider_check
   check (storage_provider in ('file', 'r2'));

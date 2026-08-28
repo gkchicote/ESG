@@ -140,6 +140,8 @@
   --color-brand-soft: var(--brand-soft);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
+  --color-streak: var(--streak);
+  --color-streak-soft: var(--streak-soft);
 }
 
 :root {
@@ -148,6 +150,10 @@
   --brand-soft: oklch(0.955 0.022 264);
   --success: oklch(0.58 0.13 155);
   --success-soft: oklch(0.955 0.035 155);
+  /* Laranja de brasa da ofensiva. Único uso do calor na paleta — é o que faz
+     o 🔥 ler como fogo ao lado do índigo dos pontos. */
+  --streak: oklch(0.66 0.17 48);
+  --streak-soft: oklch(0.955 0.04 48);
 }
 
 .dark {
@@ -156,6 +162,8 @@
   --brand-soft: oklch(0.28 0.05 264);
   --success: oklch(0.72 0.14 155);
   --success-soft: oklch(0.28 0.05 155);
+  --streak: oklch(0.78 0.15 55);
+  --streak-soft: oklch(0.3 0.06 48);
 }
 
 @layer base {
@@ -166,6 +174,100 @@
   /* Números tabulares em contadores de progresso e durações */
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ===================================================================
+   Celebração da ofensiva (StreakCelebration)
+   Fogo minimalista: brasas subindo e a chama respirando. Nada aqui é
+   informação — quem tem "reduzir movimento" ligado recebe o mesmo card
+   parado, e o número de dias continua legível do mesmo jeito.
+   =================================================================== */
+
+@keyframes streak-veil {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes streak-card {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes streak-flame {
+  0%,
+  100% {
+    transform: scale(1) rotate(-1deg);
+  }
+  50% {
+    transform: scale(1.07) rotate(1deg);
+  }
+}
+
+@keyframes streak-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.12);
+  }
+}
+
+/* A brasa sobe, encolhe e apaga. `--ember-x` e os delays vêm do componente. */
+@keyframes streak-ember {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  12% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(var(--ember-x, 0), -180px, 0) scale(0.2);
+  }
+}
+
+.streak-veil {
+  animation: streak-veil 240ms ease-out both;
+}
+.streak-card {
+  animation: streak-card 420ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.streak-flame {
+  animation: streak-flame 2.4s ease-in-out infinite;
+}
+.streak-glow {
+  animation: streak-glow 2.4s ease-in-out infinite;
+}
+.streak-ember {
+  animation: streak-ember var(--ember-duration, 2.6s) ease-out var(--ember-delay, 0s) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streak-card,
+  .streak-flame,
+  .streak-glow,
+  .streak-veil {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+  }
+  /* As brasas são puro enfeite: somem em vez de virar um piscar de 1ms. */
+  .streak-ember {
+    display: none;
   }
 }
 

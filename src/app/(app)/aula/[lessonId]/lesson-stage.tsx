@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowRight, Check, CircleCheck, Loader2 } from "lucide-react
 import { toast } from "sonner";
 import { saveLessonProgress, toggleLessonCompleted } from "@/app/actions/progress";
 import { Button } from "@/components/ui/button";
+import { StreakCelebration } from "@/components/app/streak-celebration";
 import type { VideoSource } from "@/lib/video";
 import { cn } from "@/lib/utils";
 import { YouTubePlayer, type PlayerHandle } from "./youtube-player";
@@ -40,23 +41,44 @@ export function LessonStage({
   const completedRef = useRef(initialCompleted);
   const [completed, setCompleted] = useState(initialCompleted);
   const [pending, startTransition] = useTransition();
+  // Dias da ofensiva a celebrar, ou null. Preenchido só quando a conclusão
+  // fez o contador subir — ou seja, na primeira aula concluída do dia.
+  const [celebrating, setCelebrating] = useState<number | null>(null);
 
   useEffect(() => {
     completedRef.current = completed;
   }, [completed]);
+
+  /** Toast padrão de conclusão — usado quando não há ofensiva a celebrar. */
+  const completionToast = useCallback(() => {
+    toast.success("Aula concluída", {
+      description: next ? `Próxima: ${next.title}` : "Você chegou ao fim do módulo.",
+      action: next ? { label: "Ir", onClick: () => router.push(next.href) } : undefined,
+    });
+  }, [next, router]);
 
   const markCompleted = useCallback(
     (position: number) => {
       if (completedRef.current) return;
       completedRef.current = true;
       setCompleted(true);
-      void saveLessonProgress(lessonId, position, true).then(() => router.refresh());
-      toast.success("Aula concluída", {
-        description: next ? `Próxima: ${next.title}` : "Você chegou ao fim do módulo.",
-        action: next ? { label: "Ir", onClick: () => router.push(next.href) } : undefined,
-      });
+
+      // O aviso espera a resposta do servidor (uma ida rápida) porque é ela
+      // que diz se esta foi a primeira aula do dia. Celebração e toast se
+      // excluem: duas notificações para o mesmo evento viram ruído.
+      void saveLessonProgress(lessonId, position, true)
+        .then((result) => {
+          router.refresh();
+          if (result.ok && result.streak?.advanced) setCelebrating(result.streak.days);
+          else completionToast();
+        })
+        .catch(() => {
+          // Rede caiu no meio: o aluno ainda merece saber que concluiu — a
+          // posição volta a ser gravada no próximo tick ou no beacon de saída.
+          completionToast();
+        });
     },
-    [lessonId, next, router],
+    [lessonId, router, completionToast],
   );
 
   /* Retoma no ponto salvo -------------------------------------------- */
@@ -163,8 +185,11 @@ export function LessonStage({
     setCompleted(value);
     completedRef.current = value;
     startTransition(async () => {
-      await toggleLessonCompleted(lessonId, value);
+      // Marcar no botão conta como conclusão — é o mesmo evento que paga o
+      // ponto. Só o login é que nunca move a ofensiva.
+      const result = await toggleLessonCompleted(lessonId, value);
       router.refresh();
+      if (result.ok && result.streak?.advanced) return setCelebrating(result.streak.days);
       toast[value ? "success" : "message"](
         value ? "Aula marcada como concluída" : "Marcação removida",
       );
@@ -173,6 +198,14 @@ export function LessonStage({
 
   return (
     <div className="space-y-4">
+      {celebrating !== null && (
+        <StreakCelebration
+          days={celebrating}
+          next={next}
+          onClose={() => setCelebrating(null)}
+        />
+      )}
+
       {/* Palco do vídeo ------------------------------------------------ */}
       <div className="bg-foreground/95 relative aspect-video w-full overflow-hidden rounded-xl">
         {source.kind === "video" && (

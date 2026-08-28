@@ -13,7 +13,12 @@ create table if not exists profiles (
   role          text not null default 'student' check (role in ('student', 'admin')),
   created_at    timestamptz not null default now(),
   -- Quando a pessoa entrou na plataforma pela última vez (login efetivado).
-  last_login_at timestamptz
+  last_login_at timestamptz,
+  -- Ofensiva: dias seguidos com pelo menos uma aula concluída. Login não conta.
+  streak_days     int not null default 0,
+  streak_best     int not null default 0,
+  -- Último dia (fuso de Brasília) em que uma aula foi concluída.
+  streak_last_day date
 );
 
 -- ---------- Conteúdo ------------------------------------------------

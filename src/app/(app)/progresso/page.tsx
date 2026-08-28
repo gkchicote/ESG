@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Sparkles, Trophy } from "lucide-react";
+import { Flame, Sparkles, Trophy } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
 import { getEnrolledCourse, listScoreboard } from "@/lib/db/queries";
 import { formatLastAccess, initials } from "@/lib/format";
@@ -55,8 +55,9 @@ export default async function ProgressPage() {
           Você não está estudando sozinho
         </h1>
         <p className="text-muted-foreground max-w-2xl text-[15px] leading-relaxed">
-          Cada aula concluída vale <span className="text-foreground font-medium">1 ponto</span>.
-          Veja em que módulo cada pessoa de {course.title} está e quanto já somou.
+          Cada aula concluída vale <span className="text-foreground font-medium">1 ponto</span> e
+          acende a <span className="text-foreground font-medium">ofensiva</span> do dia. Veja em
+          que módulo cada pessoa de {course.title} está e quanto já somou.
         </p>
       </header>
 
@@ -83,6 +84,25 @@ export default async function ProgressPage() {
             <p className="tabular mt-1 text-2xl font-semibold tracking-tight">{me.points}</p>
           </div>
 
+          <div>
+            <p className="text-[11px] font-semibold tracking-[0.14em] text-white/70 uppercase">
+              Sua ofensiva
+            </p>
+            <p className="tabular mt-1 flex items-baseline gap-1.5 text-2xl font-semibold tracking-tight">
+              <Flame
+                className="size-5 shrink-0 self-center"
+                strokeWidth={1.75}
+                fill="currentColor"
+                fillOpacity={me.streak_days > 0 ? 0.25 : 0}
+                aria-hidden
+              />
+              {me.streak_days}
+              <span className="text-sm font-normal text-white/70">
+                {me.streak_days === 1 ? "dia" : "dias"}
+              </span>
+            </p>
+          </div>
+
           <div className="min-w-0">
             <p className="text-[11px] font-semibold tracking-[0.14em] text-white/70 uppercase">
               Módulo atual
@@ -103,6 +123,7 @@ export default async function ProgressPage() {
                 <TableHead className="w-12 text-center">#</TableHead>
                 <TableHead>Aluno</TableHead>
                 <TableHead>Módulo atual</TableHead>
+                <TableHead className="text-right">Ofensiva</TableHead>
                 <TableHead className="text-right">Pontos</TableHead>
               </TableRow>
             </TableHeader>
@@ -167,6 +188,31 @@ export default async function ProgressPage() {
                     </TableCell>
 
                     <TableCell className="text-right">
+                      {/* Sem ofensiva viva o fogo fica apagado (cinza, sem
+                          preenchimento) em vez de sumir: a coluna não muda de
+                          largura de linha para linha. */}
+                      <span
+                        className={cn(
+                          "tabular inline-flex items-center gap-1.5 text-sm font-semibold",
+                          row.streak_days === 0 && "text-muted-foreground font-normal",
+                        )}
+                        title={
+                          row.streak_days > 0
+                            ? `${row.streak_days} ${row.streak_days === 1 ? "dia" : "dias"} seguidos estudando`
+                            : "Sem ofensiva ativa"
+                        }
+                      >
+                        <Flame
+                          className={cn("size-3.5", row.streak_days > 0 && "text-streak")}
+                          strokeWidth={1.75}
+                          fill="currentColor"
+                          fillOpacity={row.streak_days > 0 ? 0.2 : 0}
+                        />
+                        {row.streak_days}
+                      </span>
+                    </TableCell>
+
+                    <TableCell className="text-right">
                       <span className="tabular inline-flex items-center gap-1.5 text-sm font-semibold">
                         <Sparkles className="text-brand size-3.5" strokeWidth={1.75} />
                         {row.points}
@@ -182,7 +228,8 @@ export default async function ProgressPage() {
 
       <p className="text-muted-foreground mt-4 text-sm">
         O ponto é somado assim que a aula é concluída e não é perdido depois — o placar só anda
-        para a frente.
+        para a frente. Já a ofensiva conta dias, não aulas: ela sobe na primeira aula que você
+        concluir no dia e zera quando um dia passa sem nenhuma. Entrar na plataforma não conta.
       </p>
     </div>
   );

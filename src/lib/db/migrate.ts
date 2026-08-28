@@ -77,6 +77,65 @@ export async function applyMigrations(exec: Exec): Promise<void> {
      on conflict (profile_id, lesson_id) do nothing`,
   );
 
+  // ---------------------------------------------------------------
+  //  Ofensiva (streak) — dias seguidos com aula concluída
+  // ---------------------------------------------------------------
+
+  // Contador materializado em `profiles` em vez de derivado de `lesson_points`:
+  // a regra "só a primeira aula do dia avança" precisa de um lugar onde o
+  // próprio banco decida se o dia já contou (ver `registerStudyDay`), e uma
+  // agregação por data não sabe distinguir a primeira conclusão das demais.
+  //
+  // `streak_last_day` é `date`, não `timestamptz`, e sempre no fuso de
+  // Brasília: quem termina a aula às 22h de terça não pode acordar na quarta
+  // achando que já estudou — em UTC essa hora já é o dia seguinte.
+  await exec(`alter table profiles add column if not exists streak_days int not null default 0`);
+  await exec(`alter table profiles add column if not exists streak_best int not null default 0`);
+  await exec(`alter table profiles add column if not exists streak_last_day date`);
+
+  // Quem já estudava antes da ofensiva existir não começa do zero: as datas
+  // de `lesson_points` reconstroem as sequências. O truque do `d - row_number()`
+  // é o clássico "ilhas": dias consecutivos caem no mesmo grupo.
+  //
+  // Só preenche quem nunca registrou ofensiva (`streak_last_day is null`), então
+  // rodar todo boot não sobrescreve o que o app já contou.
+  await exec(
+    `with dias as (
+       select profile_id,
+              (awarded_at at time zone 'America/Sao_Paulo')::date as d
+         from lesson_points
+        group by 1, 2
+     ),
+     ilhas as (
+       select profile_id, d,
+              d - (row_number() over (partition by profile_id order by d))::int as grupo
+         from dias
+     ),
+     sequencias as (
+       select profile_id, count(*)::int as dias, max(d) as ultimo
+         from ilhas
+        group by profile_id, grupo
+     ),
+     recorde as (
+       select profile_id, max(dias) as melhor
+         from sequencias
+        group by profile_id
+     ),
+     atual as (
+       select distinct on (profile_id) profile_id, dias, ultimo
+         from sequencias
+        order by profile_id, ultimo desc
+     )
+     update profiles p
+        set streak_days     = a.dias,
+            streak_best     = greatest(p.streak_best, r.melhor),
+            streak_last_day = a.ultimo
+       from atual a
+       join recorde r on r.profile_id = a.profile_id
+      where p.id = a.profile_id
+        and p.streak_last_day is null`,
+  );
+
   // Módulo onde o aluno está agora. Dá para deduzir de `last_lesson_id`, mas
   // gravado ele sai de graça no placar (uma coluna, sem subconsulta) e
   // sobrevive à aula sair do catálogo.
@@ -113,7 +172,17 @@ export async function applyMigrations(exec: Exec): Promise<void> {
             m.id       as module_id,
             m.position as module_position,
             m.title    as module_title,
-            e.last_accessed_at
+            e.last_accessed_at,
+            -- Ofensiva "viva": o contador guardado só vale enquanto a
+            -- sequência não foi quebrada. Sem este case, quem parou há um mês
+            -- continuaria exibindo os 12 dias em que a sequência morreu.
+            -- Ontem ainda conta — o dia de hoje inteiro é a chance de manter.
+            case
+              when p.streak_last_day >= ((now() at time zone 'America/Sao_Paulo')::date - 1)
+                then p.streak_days
+              else 0
+            end as streak_days,
+            p.streak_best
        from enrollments e
        join profiles p on p.id = e.profile_id
        left join modules m on m.id = e.current_module_id

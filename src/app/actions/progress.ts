@@ -21,7 +21,7 @@ export async function saveLessonProgress(
   const lesson = await getLessonForProfile(session.sub, lessonId);
   if (!lesson) return { ok: false as const };
 
-  await saveProgress(session.sub, lessonId, seconds, completed);
+  const streak = await saveProgress(session.sub, lessonId, seconds, completed);
   await touchEnrollment(session.sub, lesson.course_id, lessonId);
 
   if (completed) {
@@ -31,7 +31,9 @@ export async function saveLessonProgress(
     revalidatePath(`/aula/${lessonId}`);
   }
 
-  return { ok: true as const };
+  // `streak` só vem preenchido na conclusão — é o que a tela da aula usa para
+  // celebrar a primeira aula do dia sem precisar de uma segunda ida ao banco.
+  return { ok: true as const, streak };
 }
 
 /** Marcar/desmarcar manualmente uma aula como concluída. */
@@ -41,7 +43,7 @@ export async function toggleLessonCompleted(lessonId: string, completed: boolean
   const lesson = await getLessonForProfile(session.sub, lessonId);
   if (!lesson) return { ok: false as const };
 
-  await setLessonCompleted(session.sub, lessonId, completed);
+  const streak = await setLessonCompleted(session.sub, lessonId, completed);
   await touchEnrollment(session.sub, lesson.course_id, lessonId);
 
   revalidatePath("/inicio");
@@ -49,5 +51,5 @@ export async function toggleLessonCompleted(lessonId: string, completed: boolean
   revalidatePath("/progresso");
   revalidatePath(`/aula/${lessonId}`);
 
-  return { ok: true as const, completed };
+  return { ok: true as const, completed, streak };
 }

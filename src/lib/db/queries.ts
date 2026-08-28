@@ -299,6 +299,66 @@ export async function awardLessonPoint(profileId: string, lessonId: string) {
   );
 }
 
+export type StudyStreak = {
+  /** Dias seguidos, já contando o de hoje. */
+  days: number;
+  /** `true` só na primeira aula concluída do dia — a que fez o número subir. */
+  advanced: boolean;
+};
+
+/**
+ * Registra que o aluno estudou hoje e devolve a ofensiva resultante.
+ *
+ * Chamada em toda conclusão de aula, nunca no login: a ofensiva mede estudo,
+ * e abrir a plataforma não é estudar.
+ *
+ * Quem decide se o dia já contou é o `where` — não o app. Isso é o que faz a
+ * regra "só a primeira aula do dia avança" valer mesmo quando duas conclusões
+ * chegam juntas (duas abas, beacon + action): o `update` trava a linha, a
+ * segunda encontra `streak_last_day` já em hoje e atualiza zero linhas.
+ *
+ * O dia é o de Brasília, e não o do servidor (UTC no deploy): terminar a aula
+ * às 22h não pode contar como o dia seguinte.
+ */
+export async function registerStudyDay(profileId: string): Promise<StudyStreak> {
+  const advanced = await queryOne<{ streak_days: number }>(
+    `update profiles p
+        set streak_days = case
+              -- Estudou ontem: a sequência continua. Qualquer buraco maior
+              -- recomeça do 1 — e o 1 é hoje, não zero.
+              when p.streak_last_day = (t.hoje - 1) then p.streak_days + 1
+              else 1
+            end,
+            streak_best = greatest(
+              p.streak_best,
+              case when p.streak_last_day = (t.hoje - 1) then p.streak_days + 1 else 1 end
+            ),
+            streak_last_day = t.hoje
+       from (select (now() at time zone 'America/Sao_Paulo')::date as hoje) t
+      where p.id = $1
+        and (p.streak_last_day is null or p.streak_last_day < t.hoje)
+      returning p.streak_days`,
+    [profileId],
+  );
+
+  if (advanced) return { days: advanced.streak_days, advanced: true };
+
+  // Nenhuma linha atualizada: a aula de hoje não foi a primeira. Lê o valor
+  // que já estava lá para a tela continuar mostrando o número certo.
+  const current = await queryOne<{ streak_days: number }>(
+    `select case
+              when streak_last_day >= ((now() at time zone 'America/Sao_Paulo')::date - 1)
+                then streak_days
+              else 0
+            end as streak_days
+       from profiles
+      where id = $1`,
+    [profileId],
+  );
+
+  return { days: current?.streak_days ?? 0, advanced: false };
+}
+
 export async function saveProgress(
   profileId: string,
   lessonId: string,
@@ -318,7 +378,9 @@ export async function saveProgress(
     [profileId, lessonId, Math.max(0, Math.round(positionSeconds)), completed ?? null],
   );
 
-  if (completed) await awardLessonPoint(profileId, lessonId);
+  if (!completed) return null;
+  await awardLessonPoint(profileId, lessonId);
+  return registerStudyDay(profileId);
 }
 
 export async function setLessonCompleted(
@@ -336,7 +398,11 @@ export async function setLessonCompleted(
     [profileId, lessonId, completed],
   );
 
-  if (completed) await awardLessonPoint(profileId, lessonId);
+  // Desmarcar não devolve o dia: a ofensiva, como os pontos, só anda para a
+  // frente. O aluno já assistiu.
+  if (!completed) return null;
+  await awardLessonPoint(profileId, lessonId);
+  return registerStudyDay(profileId);
 }
 
 /**
@@ -377,6 +443,10 @@ export type ScoreboardRow = {
   module_position: number | null;
   module_title: string | null;
   last_accessed_at: string | null;
+  /** Ofensiva viva: já zerada pela view quando a sequência foi quebrada. */
+  streak_days: number;
+  /** Maior sequência que a pessoa já teve — não zera nunca. */
+  streak_best: number;
 };
 
 /**
@@ -390,7 +460,8 @@ export type ScoreboardRow = {
  */
 export function listScoreboard(courseId: string) {
   return query<ScoreboardRow>(
-    `select profile_id, full_name, points, module_position, module_title, last_accessed_at
+    `select profile_id, full_name, points, module_position, module_title,
+            last_accessed_at, streak_days, streak_best
        from student_scoreboard
       where course_id = $1
       order by points desc, full_name asc`,

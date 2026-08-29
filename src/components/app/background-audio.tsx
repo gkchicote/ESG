@@ -46,8 +46,8 @@ export function BackgroundAudio({
         className,
       )}
     >
-      {/* preload="none": o arquivo tem ~9 MB e o player começa desligado —
-          buscá-lo antes do primeiro clique é dado móvel jogado fora. */}
+      {/* preload="none": o player começa desligado, então buscar o arquivo
+          antes do primeiro clique é dado móvel jogado fora. */}
       <audio ref={ref} src={src} loop preload="none" />
 
       <button

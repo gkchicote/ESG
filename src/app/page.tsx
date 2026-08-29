@@ -23,9 +23,9 @@ export default function LandingPage() {
        usuário não se aplica aqui. Cores fixas, sem tokens de tema. */
     <main className="relative flex min-h-svh flex-col overflow-hidden bg-neutral-950 text-white">
       <BackgroundVideo
-        src="/video/hero-bg.mp4"
-        mobileSrc="/video/hero-bg-mobile.mp4"
-        poster="/video/hero-poster.jpg"
+        src="/video/login-bg.mp4"
+        mobileSrc="/video/login-bg-mobile.mp4"
+        poster="/video/login-poster.jpg"
       />
 
       {/* Escurecimento para o texto ficar legível sobre qualquer frame */}

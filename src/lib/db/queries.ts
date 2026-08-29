@@ -32,6 +32,8 @@ export type Lesson = {
   duration_seconds: number;
   completed: boolean;
   last_position_seconds: number;
+  /** Segundos realmente assistidos — ver `saveProgress`. Não é a posição. */
+  watched_seconds: number;
   materials: Material[];
 };
 
@@ -129,6 +131,7 @@ export async function getCurriculum(
     duration_seconds: number | null;
     completed: boolean | null;
     last_position_seconds: number | null;
+    watched_seconds: number | null;
   }>(
     `select m.id            as module_id,
             m.title         as module_title,
@@ -140,7 +143,8 @@ export async function getCurriculum(
             l.position      as lesson_position,
             l.video_provider, l.video_id, l.duration_seconds,
             coalesce(lp.completed, false)             as completed,
-            coalesce(lp.last_position_seconds, 0)     as last_position_seconds
+            coalesce(lp.last_position_seconds, 0)     as last_position_seconds,
+            coalesce(lp.watched_seconds, 0)           as watched_seconds
        from modules m
        left join lessons l
               on l.module_id = m.id and l.is_published
@@ -195,6 +199,7 @@ export async function getCurriculum(
       duration_seconds: r.duration_seconds ?? 0,
       completed: !!r.completed,
       last_position_seconds: r.last_position_seconds ?? 0,
+      watched_seconds: r.watched_seconds ?? 0,
       materials: byLesson.get(r.lesson_id) ?? [],
     });
     if (r.completed) mod.completed_lessons += 1;
@@ -359,6 +364,33 @@ export async function registerStudyDay(profileId: string): Promise<StudyStreak> 
   return { days: current?.streak_days ?? 0, advanced: false };
 }
 
+/** Fração do vídeo que precisa ter sido realmente assistida para concluir. */
+export const WATCH_REQUIRED = 0.9;
+
+/**
+ * Teto de crédito por segundo de relógio.
+ *
+ * 2.5x cobre reprodução em 2x com folga para atraso de rede. É o número que
+ * transforma "assistir" em algo que custa tempo real: mandar posições cada vez
+ * maiores não adianta o contador além do que o relógio permite.
+ */
+const MAX_SPEED = 2.5;
+
+/**
+ * Provedores em que dá para medir o que foi assistido.
+ *
+ * Os embeds (vimeo, drive, bunny) entram por iframe sem API de progresso — o
+ * app não vê nada do que acontece lá dentro. Neles a conclusão continua sendo
+ * declarada pelo aluno; exigir prova que não temos como colher só deixaria a
+ * aula impossível de concluir.
+ */
+const TRACKABLE_PROVIDERS = new Set(["file", "r2", "url", "youtube"]);
+
+export type LessonCompletion =
+  | { ok: true; streak: StudyStreak }
+  /** Faltou assistir. `watched`/`required` vão para a tela, em segundos. */
+  | { ok: false; reason: "watch"; watched: number; required: number };
+
 export async function saveProgress(
   profileId: string,
   lessonId: string,
@@ -367,42 +399,113 @@ export async function saveProgress(
 ) {
   await query(
     `insert into lesson_progress
-       (profile_id, lesson_id, last_position_seconds, watched_seconds, completed, completed_at, updated_at)
-     values ($1, $2, $3, $3, coalesce($4, false), case when $4 then now() end, now())
+       (profile_id, lesson_id, last_position_seconds, watched_seconds, updated_at)
+     values ($1, $2, $3, 0, now())
      on conflict (profile_id, lesson_id) do update
         set last_position_seconds = excluded.last_position_seconds,
-            watched_seconds       = greatest(lesson_progress.watched_seconds, excluded.watched_seconds),
-            completed             = lesson_progress.completed or coalesce($4, false),
-            completed_at          = coalesce(lesson_progress.completed_at, case when $4 then now() end),
-            updated_at            = now()`,
-    [profileId, lessonId, Math.max(0, Math.round(positionSeconds)), completed ?? null],
+            -- Tempo assistido = o quanto a posição avançou, limitado pelo
+            -- tempo de relógio decorrido desde a gravação anterior.
+            --
+            -- O least() é o anti-fraude: arrastar a barra manda uma posição
+            -- muito à frente, mas o crédito para no que o relógio permite.
+            -- Sem ele, o campo era só "a posição mais distante já alcançada"
+            -- e um arrasto até o fim valia a aula inteira.
+            --
+            -- Quando a posição volta (rebobinou, recomeçou), o avanço é
+            -- negativo e o crédito passa a ser o próprio relógio: o aluno
+            -- estava lá assistindo. Sem esse ramo, cada volta para rever um
+            -- trecho apagava a janela inteira, e quem assistisse a aula toda
+            -- revendo pedaços acabava barrado por ter estudado demais.
+            watched_seconds = lesson_progress.watched_seconds + least(
+              case
+                when excluded.last_position_seconds >= lesson_progress.last_position_seconds
+                  then excluded.last_position_seconds - lesson_progress.last_position_seconds
+                else extract(epoch from (now() - lesson_progress.updated_at))
+              end,
+              greatest(extract(epoch from (now() - lesson_progress.updated_at)), 0) * ${MAX_SPEED}
+            )::int,
+            updated_at = now()`,
+    [profileId, lessonId, Math.max(0, Math.round(positionSeconds))],
   );
 
   if (!completed) return null;
+  return completeLesson(profileId, lessonId);
+}
+
+/**
+ * Conclui a aula — se o aluno tiver mesmo assistido.
+ *
+ * Único caminho para `completed = true`, ponto e ofensiva. A checagem mora
+ * aqui, e não na tela, porque o cliente é justamente a parte que não dá para
+ * confiar: quem abre o console consegue chamar a action direto.
+ *
+ * Aula já concluída passa direto — reprocessar não deve desfazer nada.
+ */
+export async function completeLesson(
+  profileId: string,
+  lessonId: string,
+): Promise<LessonCompletion> {
+  const lesson = await queryOne<{
+    duration_seconds: number;
+    video_provider: string;
+    watched_seconds: number;
+    completed: boolean;
+  }>(
+    `select l.duration_seconds, l.video_provider,
+            coalesce(lp.watched_seconds, 0) as watched_seconds,
+            coalesce(lp.completed, false)   as completed
+       from lessons l
+       left join lesson_progress lp on lp.lesson_id = l.id and lp.profile_id = $1
+      where l.id = $2`,
+    [profileId, lessonId],
+  );
+  if (!lesson) return { ok: false, reason: "watch", watched: 0, required: 0 };
+
+  // Só exige prova onde dá para colher: player rastreável e duração conhecida.
+  // Aula sem duração cadastrada não tem contra o que comparar.
+  const checkable =
+    !lesson.completed &&
+    lesson.duration_seconds > 0 &&
+    TRACKABLE_PROVIDERS.has(lesson.video_provider);
+  const required = Math.round(lesson.duration_seconds * WATCH_REQUIRED);
+
+  if (checkable && lesson.watched_seconds < required) {
+    return { ok: false, reason: "watch", watched: lesson.watched_seconds, required };
+  }
+
+  await query(
+    `insert into lesson_progress (profile_id, lesson_id, completed, completed_at, updated_at)
+     values ($1, $2, true, now(), now())
+     on conflict (profile_id, lesson_id) do update
+        set completed    = true,
+            completed_at = coalesce(lesson_progress.completed_at, now()),
+            updated_at   = now()`,
+    [profileId, lessonId],
+  );
+
   await awardLessonPoint(profileId, lessonId);
-  return registerStudyDay(profileId);
+  return { ok: true, streak: await registerStudyDay(profileId) };
 }
 
 export async function setLessonCompleted(
   profileId: string,
   lessonId: string,
   completed: boolean,
-) {
+): Promise<LessonCompletion | null> {
+  // Marcar no botão passa pela mesma porta do player: senão o botão seria o
+  // atalho que desfaz toda a verificação.
+  if (completed) return completeLesson(profileId, lessonId);
+
   await query(
-    `insert into lesson_progress (profile_id, lesson_id, completed, completed_at, updated_at)
-     values ($1, $2, $3, case when $3 then now() end, now())
-     on conflict (profile_id, lesson_id) do update
-        set completed    = excluded.completed,
-            completed_at = case when excluded.completed then coalesce(lesson_progress.completed_at, now()) end,
-            updated_at   = now()`,
-    [profileId, lessonId, completed],
+    `update lesson_progress
+        set completed = false, completed_at = null, updated_at = now()
+      where profile_id = $1 and lesson_id = $2`,
+    [profileId, lessonId],
   );
 
-  // Desmarcar não devolve o dia: a ofensiva, como os pontos, só anda para a
-  // frente. O aluno já assistiu.
-  if (!completed) return null;
-  await awardLessonPoint(profileId, lessonId);
-  return registerStudyDay(profileId);
+  // Desmarcar não devolve o dia nem o ponto: a ofensiva, como o placar, só
+  // anda para a frente. O aluno já assistiu.
+  return null;
 }
 
 /**

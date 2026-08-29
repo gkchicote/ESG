@@ -64,6 +64,8 @@ export default async function LessonPage({ params }: Props) {
             lessonId={lesson.id}
             source={source}
             startAt={lesson.last_position_seconds}
+            watchedSeconds={lesson.watched_seconds}
+            durationSeconds={lesson.duration_seconds}
             completed={lesson.completed}
             previous={previous ? { href: `/aula/${previous.lesson.id}`, title: previous.lesson.title } : null}
             next={next ? { href: `/aula/${next.lesson.id}`, title: next.lesson.title } : null}

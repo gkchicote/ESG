@@ -21,19 +21,20 @@ export async function saveLessonProgress(
   const lesson = await getLessonForProfile(session.sub, lessonId);
   if (!lesson) return { ok: false as const };
 
-  const streak = await saveProgress(session.sub, lessonId, seconds, completed);
+  const completion = await saveProgress(session.sub, lessonId, seconds, completed);
   await touchEnrollment(session.sub, lesson.course_id, lessonId);
 
-  if (completed) {
+  if (completion?.ok) {
     revalidatePath("/inicio");
     revalidatePath("/modulos");
     revalidatePath("/progresso");
     revalidatePath(`/aula/${lessonId}`);
   }
 
-  // `streak` só vem preenchido na conclusão — é o que a tela da aula usa para
-  // celebrar a primeira aula do dia sem precisar de uma segunda ida ao banco.
-  return { ok: true as const, streak };
+  // `completion` só vem preenchido quando a conclusão foi pedida. Ele diz se
+  // ela valeu (com a ofensiva do dia) ou quanto ainda falta assistir — a tela
+  // da aula precisa dos dois casos, e sem uma segunda ida ao banco.
+  return { ok: true as const, completion };
 }
 
 /** Marcar/desmarcar manualmente uma aula como concluída. */
@@ -43,7 +44,7 @@ export async function toggleLessonCompleted(lessonId: string, completed: boolean
   const lesson = await getLessonForProfile(session.sub, lessonId);
   if (!lesson) return { ok: false as const };
 
-  const streak = await setLessonCompleted(session.sub, lessonId, completed);
+  const completion = await setLessonCompleted(session.sub, lessonId, completed);
   await touchEnrollment(session.sub, lesson.course_id, lessonId);
 
   revalidatePath("/inicio");
@@ -51,5 +52,8 @@ export async function toggleLessonCompleted(lessonId: string, completed: boolean
   revalidatePath("/progresso");
   revalidatePath(`/aula/${lessonId}`);
 
-  return { ok: true as const, completed, streak };
+  // Pedido de marcar que não passou na verificação: a aula continua em aberto,
+  // e `completed` volta false para a tela desfazer o check otimista.
+  const applied = completed ? (completion?.ok ?? false) : false;
+  return { ok: true as const, completed: applied, completion };
 }

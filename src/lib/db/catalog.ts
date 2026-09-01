@@ -117,6 +117,16 @@ export function lessonMaterials(lesson: LessonSeed): {
 const r2 = (key: string): VideoSeed => ({ provider: "r2", id: key });
 
 /**
+ * Aula publicada cujo vídeo ainda não está no bucket.
+ *
+ * O player mostra o aviso no lugar do vídeo e, como não há duração cadastrada,
+ * o servidor não cobra prova de que a aula foi assistida — o aluno consegue
+ * marcá-la como concluída pelo botão. Serve para as conclusões dos módulos 07
+ * e 08, que existem para entregar os arquivos completos da história.
+ */
+const conclusaoSemVideo: VideoSeed = { provider: "r2", id: null };
+
+/**
  * Anexos de uma aula de história (módulos 02 a 04).
  *
  * Os três módulos têm a mesma pasta no R2 — o PDF do texto, um .zip de frases
@@ -241,14 +251,41 @@ function theBellOfAtri(number: number): { materials: MaterialSeed[]; audios: Aud
   });
 }
 
+/** Anexos das aulas de Goldilocks and the Three Bears (módulo 07). */
+function goldilocks(number: number): { materials: MaterialSeed[]; audios: AudioSeed[] } {
+  const n = String(number).padStart(2, "0");
+  return storyMaterials({
+    dir: `F-MODULO07/Módulo 07/Goldilocks and the Three Bears ${n}`,
+    pdf: `PDF Goldilocks and the Three Bears ${n}.pdf`,
+    // O .zip encurta o título para só "Goldilocks" e leva o número no fim,
+    // depois de "Anki" — nos módulos anteriores ele vinha antes.
+    zip: `Goldilocks Audios para Anki ${n}.zip`,
+    audio: (voice) => `AUDIO Goldilocks and the Three Bears ${n} ${voice}.mp3`,
+    voices: ["Charlie", "Kathy", "Peter", "Zoe"],
+  });
+}
+
+/** Anexos das aulas de Antonio Canova (módulo 08). */
+function antonioCanova(number: number): { materials: MaterialSeed[]; audios: AudioSeed[] } {
+  const n = String(number).padStart(2, "0");
+  return storyMaterials({
+    dir: `F-MODULO08/Módulo 08/Antonio Canova ${n}`,
+    pdf: `PDF Antonio Canova ${n}.pdf`,
+    // "AC" é a abreviação do título; só o .zip a usa.
+    zip: `AC Audios para Anki ${n}.zip`,
+    audio: (voice) => `AUDIO Antonio Canova ${n} ${voice}.mp3`,
+    voices: ["Charlie", "Kathy", "Peter", "Zoe"],
+  });
+}
+
 /**
- * Texto e áudio completos da história — módulos 05 e 06.
+ * Texto e áudio completos da história — módulos 05 a 08.
  *
- * Os dois trazem, além dos arquivos aula a aula, uma pasta com a história
+ * Os quatro trazem, além dos arquivos aula a aula, uma pasta com a história
  * inteira: um PDF único e a gravação corrida de cada voz. Não é material de
  * nenhuma aula em particular, então vai na conclusão do módulo, onde o aluno
  * chega com a história toda estudada — mesmo papel que o baralho do Anki tem
- * na aula 01 dos módulos 02 a 04. Estes dois módulos não têm baralho.
+ * na aula 01 dos módulos 02 a 04. Nenhum destes quatro tem baralho.
  */
 function completeStory({
   dir,
@@ -414,6 +451,67 @@ export const CURRICULUM: ModuleSeed[] = [
           dir: "F-MODULO06/Módulo 06/The Bell of Atri Completo",
           pdf: "PDF The Bell of Atri Texto Completo.pdf",
           audio: (voice) => `The Bell of Atri ${voice} Complete Audio.mp3`,
+          voices: ["Charlie", "Kathy", "Peter", "Zoe"],
+        }),
+      },
+    ],
+  },
+  {
+    slug: "goldilocks-and-the-three-bears",
+    title: "Goldilocks and the Three Bears",
+    description: "A história de Goldilocks and the Three Bears, em sete aulas.",
+    lessons: [
+      { slug: "goldilocks-and-the-three-bears-instrucoes", title: "Instruções do Módulo 07", description: "", seconds: 339, video: r2("F-MODULO07/M07V55 Instruções do Módulo 07_comprimido.mp4") },
+      { slug: "goldilocks-and-the-three-bears-01", title: "Aula 01 - Goldilocks and the Three Bears", description: "", seconds: 1710, video: r2("F-MODULO07/M07V56 Goldilocks and the Three Bears 01_comprimido.mp4"), ...goldilocks(1) },
+      { slug: "goldilocks-and-the-three-bears-02", title: "Aula 02 - Goldilocks and the Three Bears", description: "", seconds: 1169, video: r2("F-MODULO07/M07V57 Goldilocks and the Three Bears 02_comprimido.mp4"), ...goldilocks(2) },
+      { slug: "goldilocks-and-the-three-bears-03", title: "Aula 03 - Goldilocks and the Three Bears", description: "", seconds: 1222, video: r2("F-MODULO07/M07V58 Goldilocks and the Three Bears 03_comprimido.mp4"), ...goldilocks(3) },
+      { slug: "goldilocks-and-the-three-bears-04", title: "Aula 04 - Goldilocks and the Three Bears", description: "", seconds: 1225, video: r2("F-MODULO07/M07V59 Goldilocks and the Three Bears 04_comprimido.mp4"), ...goldilocks(4) },
+      { slug: "goldilocks-and-the-three-bears-05", title: "Aula 05 - Goldilocks and the Three Bears", description: "", seconds: 1605, video: r2("F-MODULO07/M07V60 Goldilocks and the Three Bears 05_comprimido.mp4"), ...goldilocks(5) },
+      { slug: "goldilocks-and-the-three-bears-06", title: "Aula 06 - Goldilocks and the Three Bears", description: "", seconds: 1166, video: r2("F-MODULO07/M07V61 Goldilocks and the Three Bears 06_comprimido.mp4"), ...goldilocks(6) },
+      { slug: "goldilocks-and-the-three-bears-07", title: "Aula 07 - Goldilocks and the Three Bears", description: "", seconds: 1514, video: r2("F-MODULO07/M07V62 Goldilocks and the Three Bears 07_comprimido.mp4"), ...goldilocks(7) },
+      {
+        slug: "goldilocks-and-the-three-bears-conclusao",
+        title: "Conclusão do Módulo 07",
+        description: "",
+        seconds: 0,
+        // O M07V63 ainda não subiu como vídeo — o bucket só tem o .png do
+        // slide. A aula fica publicada pelos arquivos completos, com o aviso
+        // do player no lugar do vídeo; quando o MP4 subir, é só trocar por
+        // r2(...) e a duração real. Ver conclusaoSemVideo.
+        video: conclusaoSemVideo,
+        ...completeStory({
+          dir: "F-MODULO07/Módulo 07/Goldilocks and the Three Bears Arquivos Completos",
+          pdf: "PDF Goldilocks and the Three Bears Completo.pdf",
+          audio: (voice) => `Goldilocks and the Three Bears ${voice} Audio Completo.mp3`,
+          voices: ["Charlie", "Kathy", "Peter", "Zoe"],
+        }),
+      },
+    ],
+  },
+  {
+    slug: "antonio-canova",
+    title: "Antonio Canova",
+    description: "A história de Antonio Canova, em sete aulas.",
+    lessons: [
+      { slug: "antonio-canova-instrucoes", title: "Instruções do Módulo 08", description: "", seconds: 367, video: r2("F-MODULO08/M08V64 Instruções do Módulo 08_comprimido.mp4") },
+      { slug: "antonio-canova-01", title: "Aula 01 - Antonio Canova", description: "", seconds: 1289, video: r2("F-MODULO08/M08V65 Antonio Canova 01_comprimido.mp4"), ...antonioCanova(1) },
+      { slug: "antonio-canova-02", title: "Aula 02 - Antonio Canova", description: "", seconds: 1118, video: r2("F-MODULO08/M08V66 Antonio Canova 02_comprimido.mp4"), ...antonioCanova(2) },
+      { slug: "antonio-canova-03", title: "Aula 03 - Antonio Canova", description: "", seconds: 1206, video: r2("F-MODULO08/M08V67 Antonio Canova 03_comprimido.mp4"), ...antonioCanova(3) },
+      { slug: "antonio-canova-04", title: "Aula 04 - Antonio Canova", description: "", seconds: 868, video: r2("F-MODULO08/M08V68 Antonio Canova 04_comprimido.mp4"), ...antonioCanova(4) },
+      { slug: "antonio-canova-05", title: "Aula 05 - Antonio Canova", description: "", seconds: 1085, video: r2("F-MODULO08/M08V69 Antonio Canova 05_comprimido.mp4"), ...antonioCanova(5) },
+      { slug: "antonio-canova-06", title: "Aula 06 - Antonio Canova", description: "", seconds: 721, video: r2("F-MODULO08/M08V70 Antonio Canova 06_comprimido.mp4"), ...antonioCanova(6) },
+      { slug: "antonio-canova-07", title: "Aula 07 - Antonio Canova", description: "", seconds: 1342, video: r2("F-MODULO08/M08V71 Antonio Canova 07_comprimido.mp4"), ...antonioCanova(7) },
+      {
+        slug: "antonio-canova-conclusao",
+        title: "Conclusão do Módulo 08",
+        description: "",
+        seconds: 0,
+        // Mesma situação do módulo 07: o M08V72 está no bucket só como .png.
+        video: conclusaoSemVideo,
+        ...completeStory({
+          dir: "F-MODULO08/Módulo 08/Antonio Canova Complete",
+          pdf: "PDF Antonio Canova Completo.pdf",
+          audio: (voice) => `Antonio Canova ${voice} Complete Audio.mp3`,
           voices: ["Charlie", "Kathy", "Peter", "Zoe"],
         }),
       },

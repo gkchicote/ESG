@@ -483,6 +483,22 @@ export async function completeLesson(
     [profileId, lessonId],
   );
 
+  // Carimba o acesso na hora exata da conclusão, junto do próprio registro:
+  // é o que a coluna "Último acesso" do admin lê. Fica aqui, e não só no
+  // chamador, para que nenhuma porta de conclusão deixe o horário para trás.
+  await query(
+    `update enrollments e
+        set last_accessed_at  = now(),
+            last_lesson_id    = $2,
+            current_module_id = l.module_id
+       from lessons l
+       join modules m on m.id = l.module_id
+      where l.id = $2
+        and e.profile_id = $1
+        and e.course_id  = m.course_id`,
+    [profileId, lessonId],
+  );
+
   await awardLessonPoint(profileId, lessonId);
   return { ok: true, streak: await registerStudyDay(profileId) };
 }
@@ -585,8 +601,11 @@ export type AdminUserRow = {
   course_id: string | null;
   course_title: string | null;
   percent: number | null;
-  last_accessed_at: string | null;
-  last_login_at: string | null;
+  /**
+   * Atividade mais recente da pessoa: o login e o acesso à aula, o que for
+   * mais novo. Quem entrou ontem e concluiu uma aula hoje aparece com hoje.
+   */
+  last_seen_at: string | null;
 };
 
 export type CourseOption = { id: string; title: string };
@@ -604,8 +623,9 @@ export function listUsers() {
             e.course_id,
             c.title as course_title,
             cp.percent,
-            e.last_accessed_at,
-            p.last_login_at
+            -- greatest no Postgres ignora nulo: quem nunca abriu aula cai
+            -- no login, e quem nunca logou (convite pendente) fica nulo.
+            greatest(p.last_login_at, e.last_accessed_at) as last_seen_at
        from profiles p
        left join enrollments e on e.profile_id = p.id
        left join courses c     on c.id = e.course_id

@@ -45,10 +45,11 @@ export function formatLastAccess(value: string | Date | null): string {
 }
 
 /**
- * "28/08/2026 14:32" — data e hora cheias do último login, no fuso de Brasília.
- * O servidor roda em UTC no deploy; fixar o fuso evita mostrar hora errada.
+ * "28/08/2026 14:32" — data e hora cheias da última atividade (login ou aula),
+ * no fuso de Brasília. O servidor roda em UTC no deploy; fixar o fuso evita
+ * mostrar hora errada.
  */
-export function formatLoginAt(value: string | Date | null): string {
+export function formatSeenAt(value: string | Date | null): string {
   if (!value) return "nunca acessou";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "nunca acessou";

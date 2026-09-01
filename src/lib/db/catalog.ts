@@ -278,14 +278,32 @@ function antonioCanova(number: number): { materials: MaterialSeed[]; audios: Aud
   });
 }
 
+/** Anexos das aulas de Why Cats and Dogs are Enemies (módulo 09). */
+function whyCatsAndDogs(number: number): { materials: MaterialSeed[]; audios: AudioSeed[] } {
+  const n = String(number).padStart(2, "0");
+  return storyMaterials({
+    dir: `F-MODULO09/Módulo 09/Why Cats and Dogs are Enemies ${n}`,
+    pdf: `PDF Why Cats and Dogs are Enemies ${n}.pdf`,
+    // O .zip corta o título para "Cats and Dogs" — mesma abreviação da pasta
+    // dos arquivos completos, e a única coisa no módulo que a usa.
+    zip: `Cats and Dogs Audios para Anki ${n}.zip`,
+    audio: (voice) => `AUDIO Why Cats and Dogs are Enemies ${n} ${voice}.mp3`,
+    voices: ["Charlie", "Kathy", "Peter", "Zoe"],
+    deck:
+      number === 1
+        ? "F-MODULO09/Módulo 09/09_why_cats_and_dogs_are_enemies.apkg"
+        : undefined,
+  });
+}
+
 /**
- * Texto e áudio completos da história — módulos 05 a 08.
+ * Texto e áudio completos da história — módulos 05 em diante.
  *
- * Os quatro trazem, além dos arquivos aula a aula, uma pasta com a história
+ * Todos eles trazem, além dos arquivos aula a aula, uma pasta com a história
  * inteira: um PDF único e a gravação corrida de cada voz. Não é material de
  * nenhuma aula em particular, então vai na conclusão do módulo, onde o aluno
- * chega com a história toda estudada — mesmo papel que o baralho do Anki tem
- * na aula 01 dos módulos 02 a 04. Nenhum destes quatro tem baralho.
+ * chega com a história toda estudada. Os módulos 05 a 08 não têm baralho do
+ * Anki; o 09 tem, e ele continua na aula 01, como nos módulos 02 a 04.
  */
 function completeStory({
   dir,
@@ -512,6 +530,39 @@ export const CURRICULUM: ModuleSeed[] = [
           dir: "F-MODULO08/Módulo 08/Antonio Canova Complete",
           pdf: "PDF Antonio Canova Completo.pdf",
           audio: (voice) => `Antonio Canova ${voice} Complete Audio.mp3`,
+          voices: ["Charlie", "Kathy", "Peter", "Zoe"],
+        }),
+      },
+    ],
+  },
+  {
+    slug: "why-cats-and-dogs-are-enemies",
+    title: "Why Cats and Dogs are Enemies",
+    description: "A história de Why Cats and Dogs are Enemies, em oito aulas.",
+    lessons: [
+      { slug: "why-cats-and-dogs-are-enemies-instrucoes", title: "Instruções do Módulo 09", description: "", seconds: 182, video: r2("F-MODULO09/M09V73 Instruções do Módulo 09_comprimido.mp4") },
+      { slug: "why-cats-and-dogs-are-enemies-01", title: "Aula 01 - Why Cats and Dogs are Enemies", description: "", seconds: 2203, video: r2("F-MODULO09/M09V74 Why Cats and Dogs are Enemies 01_comprimido.mp4"), ...whyCatsAndDogs(1) },
+      { slug: "why-cats-and-dogs-are-enemies-02", title: "Aula 02 - Why Cats and Dogs are Enemies", description: "", seconds: 1326, video: r2("F-MODULO09/M09V75 Why Cats and Dogs are Enemies 02_comprimido.mp4"), ...whyCatsAndDogs(2) },
+      { slug: "why-cats-and-dogs-are-enemies-03", title: "Aula 03 - Why Cats and Dogs are Enemies", description: "", seconds: 1186, video: r2("F-MODULO09/M09V76 Why Cats and Dogs are Enemies 03_comprimido.mp4"), ...whyCatsAndDogs(3) },
+      { slug: "why-cats-and-dogs-are-enemies-04", title: "Aula 04 - Why Cats and Dogs are Enemies", description: "", seconds: 1476, video: r2("F-MODULO09/M09V77 Why Cats and Dogs are Enemies 04_comprimido.mp4"), ...whyCatsAndDogs(4) },
+      { slug: "why-cats-and-dogs-are-enemies-05", title: "Aula 05 - Why Cats and Dogs are Enemies", description: "", seconds: 1429, video: r2("F-MODULO09/M09V78 Why Cats and Dogs are Enemies 05_comprimido.mp4"), ...whyCatsAndDogs(5) },
+      { slug: "why-cats-and-dogs-are-enemies-06", title: "Aula 06 - Why Cats and Dogs are Enemies", description: "", seconds: 1151, video: r2("F-MODULO09/M09V79 Why Cats and Dogs are Enemies 06_comprimido.mp4"), ...whyCatsAndDogs(6) },
+      { slug: "why-cats-and-dogs-are-enemies-07", title: "Aula 07 - Why Cats and Dogs are Enemies", description: "", seconds: 1355, video: r2("F-MODULO09/M09V80 Why Cats and Dogs are Enemies 07_comprimido.mp4"), ...whyCatsAndDogs(7) },
+      { slug: "why-cats-and-dogs-are-enemies-08", title: "Aula 08 - Why Cats and Dogs are Enemies", description: "", seconds: 981, video: r2("F-MODULO09/M09V81 Why Cats and Dogs are Enemies 08_comprimido.mp4"), ...whyCatsAndDogs(8) },
+      {
+        // O vídeo fecha a Fundação inteira, não só o módulo 09 — é o nome que
+        // ele tem no bucket ("Conclusão da Fundação") e o que o aluno ouve.
+        slug: "why-cats-and-dogs-are-enemies-conclusao",
+        title: "Conclusão da Fundação",
+        description: "",
+        seconds: 822,
+        video: r2("F-MODULO09/M09V82 Conclusão da Fundação_comprimido.mp4"),
+        ...completeStory({
+          // A pasta abrevia o título ("Cats and Dogs"), mas os arquivos dentro
+          // dela não.
+          dir: "F-MODULO09/Módulo 09/Cats and Dogs Arquivos Completos",
+          pdf: "PDF Why Cats and Dogs are Enemies Completo.pdf",
+          audio: (voice) => `Why Cats and Dogs are Enemies ${voice} Complete Audio.mp3`,
           voices: ["Charlie", "Kathy", "Peter", "Zoe"],
         }),
       },

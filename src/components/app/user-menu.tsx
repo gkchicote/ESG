@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PresenceBadge, PresenceDot } from "@/components/app/presence-status";
 import { initials } from "@/lib/format";
 
 export function UserMenu({ name, email }: { name: string; email: string }) {
@@ -22,11 +23,16 @@ export function UserMenu({ name, email }: { name: string; email: string }) {
           className="h-9 gap-2 px-1.5 sm:pr-3"
           aria-label="Abrir menu da conta"
         >
-          <Avatar className="size-7">
-            <AvatarFallback className="bg-brand-soft text-brand text-[11px] font-semibold">
-              {initials(name)}
-            </AvatarFallback>
-          </Avatar>
+          {/* A bolinha encosta no avatar em vez de virar mais um item na
+              barra: o status é sobre a pessoa, não sobre a navegação. */}
+          <span className="relative">
+            <Avatar className="size-7">
+              <AvatarFallback className="bg-brand-soft text-brand text-[11px] font-semibold">
+                {initials(name)}
+              </AvatarFallback>
+            </Avatar>
+            <PresenceDot className="ring-background absolute -right-0.5 -bottom-0.5 ring-2" />
+          </span>
           <span className="hidden text-sm font-medium sm:inline">{name.split(" ")[0]}</span>
         </Button>
       </DropdownMenuTrigger>
@@ -35,6 +41,7 @@ export function UserMenu({ name, email }: { name: string; email: string }) {
         <DropdownMenuLabel className="font-normal">
           <p className="text-sm font-medium">{name}</p>
           <p className="text-muted-foreground truncate text-xs">{email}</p>
+          <PresenceBadge className="mt-1.5" />
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled>

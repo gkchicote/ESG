@@ -1,3 +1,31 @@
+/**
+ * Fuso de referência do produto: a turma é brasileira e o servidor roda em UTC
+ * no deploy. Todo rótulo de dia ("hoje", "ontem") e toda contagem de ofensiva
+ * (feita no banco, com `at time zone`) usam este mesmo relógio — senão, entre
+ * 21h e a meia-noite de Brasília o dia UTC já virou e a aula concluída à tarde
+ * apareceria como "ontem".
+ */
+export const APP_TIME_ZONE = "America/Sao_Paulo";
+
+const dayParts = new Intl.DateTimeFormat("en-US", {
+  timeZone: APP_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * O dia civil de Brasília de um instante, como número de dias desde a época.
+ * Subtrair dois destes dá a diferença em dias de calendário — sem depender do
+ * fuso do processo (UTC no servidor, o do aluno no navegador).
+ */
+function brasiliaDay(date: Date): number {
+  const parts = dayParts.formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+  return Math.floor(Date.UTC(get("year"), get("month") - 1, get("day")) / 86_400_000);
+}
+
 /** 3725 -> "1h 02min" | 612 -> "10min" | 45 -> "45s" | 0 -> "—" */
 export function formatDuration(totalSeconds: number): string {
   // Aula publicada sem duração cadastrada (vídeo ainda por vir): "0s" soaria
@@ -28,20 +56,29 @@ export function formatFileSize(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** "hoje", "ontem", "há 3 dias", ou a data cheia. */
-export function formatLastAccess(value: string | Date | null): string {
+/**
+ * "hoje", "ontem", "há 3 dias", ou a data cheia — sempre no fuso de Brasília,
+ * para bater com o dia que conta a ofensiva. `now` só existe para teste.
+ */
+export function formatLastAccess(value: string | Date | null, now: Date = new Date()): string {
   if (!value) return "primeiro acesso";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "primeiro acesso";
 
-  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((startOf(new Date()) - startOf(date)) / 86_400_000);
+  // Carimbo no futuro (relógio do cliente adiantado, por exemplo) é "hoje", e
+  // não uma contagem negativa.
+  const days = Math.max(0, brasiliaDay(now) - brasiliaDay(date));
 
-  if (days <= 0) return "hoje";
+  if (days === 0) return "hoje";
   if (days === 1) return "ontem";
   if (days < 7) return `há ${days} dias`;
   if (days < 30) return `há ${Math.floor(days / 7)} semana${days >= 14 ? "s" : ""}`;
-  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+  return date.toLocaleDateString("pt-BR", {
+    timeZone: APP_TIME_ZONE,
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 /**
@@ -55,7 +92,7 @@ export function formatSeenAt(value: string | Date | null): string {
   if (Number.isNaN(date.getTime())) return "nunca acessou";
 
   return date.toLocaleString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
+    timeZone: APP_TIME_ZONE,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

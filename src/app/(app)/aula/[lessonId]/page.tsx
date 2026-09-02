@@ -10,6 +10,7 @@ import { formatDuration } from "@/lib/format";
 import { MaterialLink } from "@/components/app/material-link";
 import { Button } from "@/components/ui/button";
 import { LessonAudio } from "./lesson-audio";
+import { LessonPdf } from "./lesson-pdf";
 import { LessonSidebar } from "./lesson-sidebar";
 import { LessonStage } from "./lesson-stage";
 
@@ -43,10 +44,16 @@ export default async function LessonPage({ params }: Props) {
 
   const source = resolveVideoSource(lesson.video_provider, lesson.video_id, lesson.id);
 
-  // Áudio não é anexo para baixar: é a mesma gravação em vozes diferentes,
-  // que ganha o player logo abaixo dos materiais.
+  // Os materiais se dividem por como são consumidos, não por formato:
+  //
+  // - áudio  -> player de vozes, logo abaixo dos materiais;
+  // - PDF    -> lido na própria página, junto do texto da aula;
+  // - resto  -> lista de anexos para baixar (o baralho do Anki, por exemplo).
   const audios = lesson.materials.filter((m) => m.file_type === "audio");
-  const attachments = lesson.materials.filter((m) => m.file_type !== "audio");
+  const documents = lesson.materials.filter((m) => m.file_type === "pdf");
+  const attachments = lesson.materials.filter(
+    (m) => m.file_type !== "audio" && m.file_type !== "pdf",
+  );
 
   return (
     <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
@@ -87,6 +94,24 @@ export default async function LessonPage({ params }: Props) {
             <p className="mt-5 max-w-2xl text-[15px] leading-relaxed">{lesson.description}</p>
           )}
 
+          {/* Leitura da aula ----------------------------------------- */}
+          {documents.length > 0 && (
+            <section className="mt-9">
+              {/* "Leitura", e não "Texto da aula": o material em si costuma se
+                  chamar assim, e o título repetido em cima do próprio card
+                  não diz nada a mais. */}
+              <h2 className="text-sm font-medium">Leitura da aula</h2>
+              <p className="text-muted-foreground mt-1 mb-3 text-sm">
+                Leia por aqui mesmo — baixar é opcional.
+              </p>
+              <div className="space-y-4">
+                {documents.map((material) => (
+                  <LessonPdf key={material.id} material={material} lessonTitle={lesson.title} />
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Materiais ---------------------------------------------- */}
           <section className="mt-9">
             <h2 className="mb-3 text-sm font-medium">Material da aula</h2>
@@ -98,7 +123,9 @@ export default async function LessonPage({ params }: Props) {
               </div>
             ) : (
               <p className="text-muted-foreground rounded-lg border border-dashed px-4 py-6 text-center text-sm">
-                Esta aula não tem material anexo.
+                {documents.length > 0
+                  ? "Além do texto acima, esta aula não tem outros anexos."
+                  : "Esta aula não tem material anexo."}
               </p>
             )}
           </section>

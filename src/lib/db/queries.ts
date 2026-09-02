@@ -725,6 +725,101 @@ export function countAdmins() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Playlist de áudios                                                   */
+/* ------------------------------------------------------------------ */
+
+/** Áudio salvo na playlist, já com a aula de onde ele veio. */
+export type PlaylistTrack = {
+  material_id: string;
+  /** Nome da voz ("Jake", "Moira"...) — o título do material. */
+  title: string;
+  file_size: number | null;
+  added_at: string;
+  lesson_id: string;
+  lesson_title: string;
+  module_position: number;
+  module_title: string;
+};
+
+/**
+ * Playlist do aluno, na ordem em que ele montou.
+ *
+ * O join com `enrollments` não é decoração: matrícula que expirou tira o
+ * áudio da lista sem precisar apagar nada — o mesmo critério que a rota de
+ * download usa para liberar o arquivo. Sem ele, a tela ofereceria um play que
+ * o servidor recusaria.
+ */
+export function listPlaylist(profileId: string) {
+  return query<PlaylistTrack>(
+    `select mt.id as material_id, mt.title, mt.file_size, pi.added_at,
+            l.id as lesson_id, l.title as lesson_title,
+            m.position as module_position, m.title as module_title
+       from playlist_items pi
+       join materials mt  on mt.id = pi.material_id
+       join lessons l     on l.id = mt.lesson_id
+       join modules m     on m.id = l.module_id
+       join enrollments e on e.course_id = m.course_id and e.profile_id = pi.profile_id
+      where pi.profile_id = $1
+        and l.is_published and m.is_published
+        and (e.expires_at is null or e.expires_at > now())
+      order by pi.added_at`,
+    [profileId],
+  );
+}
+
+/** Só os ids — é o que o botão "Adicionar à playlist" precisa saber. */
+export async function listPlaylistIds(profileId: string): Promise<string[]> {
+  const rows = await query<{ material_id: string }>(
+    `select material_id from playlist_items where profile_id = $1 order by added_at`,
+    [profileId],
+  );
+  return rows.map((row) => row.material_id);
+}
+
+/**
+ * Salva um áudio na playlist. Devolve false quando o material não é um áudio
+ * de curso em que o aluno está matriculado.
+ *
+ * A matrícula é conferida dentro do próprio insert: a Server Action é
+ * alcançável por POST direto, então quem decide o que pode entrar é o SQL, e
+ * não a tela que chamou.
+ */
+export async function addPlaylistItem(profileId: string, materialId: string) {
+  const inserted = await query<{ material_id: string }>(
+    `insert into playlist_items (profile_id, material_id)
+     select $1::uuid, $2::uuid
+      where exists (
+        select 1
+          from materials mt
+          join lessons l     on l.id = mt.lesson_id
+          join modules m     on m.id = l.module_id
+          join enrollments e on e.course_id = m.course_id and e.profile_id = $1
+         where mt.id = $2::uuid
+           and mt.file_type = 'audio'
+           and (e.expires_at is null or e.expires_at > now()))
+     on conflict (profile_id, material_id) do nothing
+     returning material_id`,
+    [profileId, materialId],
+  );
+  if (inserted.length > 0) return true;
+
+  // Zero linhas tem dois motivos: o áudio já estava lá (o `do nothing`) ou o
+  // aluno não tem direito a ele. Só o primeiro é sucesso.
+  const existing = await queryOne<{ material_id: string }>(
+    `select material_id from playlist_items where profile_id = $1 and material_id = $2::uuid`,
+    [profileId, materialId],
+  );
+  return existing !== null;
+}
+
+export async function removePlaylistItem(profileId: string, materialId: string) {
+  await query(`delete from playlist_items where profile_id = $1 and material_id = $2::uuid`, [
+    profileId,
+    materialId,
+  ]);
+}
+
+/* ------------------------------------------------------------------ */
 /* Convites                                                             */
 /* ------------------------------------------------------------------ */
 

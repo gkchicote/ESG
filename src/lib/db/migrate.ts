@@ -233,4 +233,32 @@ export async function applyMigrations(exec: Exec): Promise<void> {
   );
   await exec(`create index if not exists invites_token_idx on invites (token)`);
   await exec(`alter table invites alter column email drop not null`);
+
+  // ---------------------------------------------------------------
+  //  Playlist de áudios
+  // ---------------------------------------------------------------
+
+  // Uma linha por áudio salvo pelo aluno. A chave primária composta é o que
+  // impede o mesmo áudio de entrar duas vezes, sem depender de o app conferir
+  // antes de inserir — mesma ideia de `lesson_points`.
+  //
+  // O `on delete cascade` dos dois lados é o que mantém a playlist honesta:
+  // material que sai do catálogo (ou aluno removido) leva o item embora, e a
+  // lista nunca aponta para um arquivo que não existe mais.
+  //
+  // Fica no banco, e não no navegador: a playlist é do aluno, não do aparelho
+  // — quem monta a lista no computador continua ouvindo dela no celular.
+  await exec(
+    `create table if not exists playlist_items (
+       profile_id  uuid not null references profiles(id) on delete cascade,
+       material_id uuid not null references materials(id) on delete cascade,
+       added_at    timestamptz not null default now(),
+       primary key (profile_id, material_id)
+     )`,
+  );
+  // A playlist é sempre lida inteira e na ordem em que foi montada.
+  await exec(
+    `create index if not exists playlist_items_profile_idx
+       on playlist_items (profile_id, added_at)`,
+  );
 }

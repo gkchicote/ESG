@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AudioLines, Download, Headphones } from "lucide-react";
+import { AddToPlaylistButton } from "@/components/app/add-to-playlist-button";
 import { formatFileSize } from "@/lib/format";
 import type { Material } from "@/lib/db/queries";
 import { cn } from "@/lib/utils";
@@ -87,19 +88,25 @@ export function LessonAudio({
         Seu navegador não consegue tocar este áudio.
       </audio>
 
-      <div className="text-muted-foreground mt-2.5 flex items-center justify-between gap-3 text-xs">
-        <span className="truncate">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5">
+        <span className="text-muted-foreground min-w-0 truncate text-xs">
           Ouvindo a voz de {active.title}
           {active.file_size ? ` · ${formatFileSize(active.file_size)}` : ""}
         </span>
-        <a
-          href={`/api/materials/${active.id}`}
-          download={fileName}
-          className="hover:text-foreground flex shrink-0 items-center gap-1 transition-colors"
-        >
-          <Download className="size-3.5" strokeWidth={1.75} />
-          Baixar
-        </a>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Guarda a voz que está selecionada — trocar de voz troca o áudio
+              que o botão salva, que é o que o aluno vê na tela. */}
+          <AddToPlaylistButton materialId={active.id} label={active.title} />
+          <a
+            href={`/api/materials/${active.id}`}
+            download={fileName}
+            className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
+          >
+            <Download className="size-3.5" strokeWidth={1.75} />
+            Baixar
+          </a>
+        </div>
       </div>
     </div>
   );

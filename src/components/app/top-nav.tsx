@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { usePlaylist } from "@/components/app/playlist-provider";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
   { href: "/inicio", label: "Início" },
   { href: "/modulos", label: "Módulos" },
+  { href: "/playlist", label: "Playlist" },
   { href: "/progresso", label: "Progresso" },
 ];
 
@@ -20,6 +22,7 @@ export function TopNav({
   isAdmin?: boolean;
 }) {
   const pathname = usePathname();
+  const { count } = usePlaylist();
   const links = isAdmin ? [...LINKS, ADMIN_LINK] : LINKS;
 
   return (
@@ -35,13 +38,20 @@ export function TopNav({
             href={link.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              "relative flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
               active
                 ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
             {link.label}
+            {/* Quantos áudios estão guardados — some quando a lista está
+                vazia, senão a aba nova vira um "0" permanente na barra. */}
+            {link.href === "/playlist" && count > 0 && (
+              <span className="bg-brand-soft text-brand tabular rounded-full px-1.5 py-0.5 text-[11px] leading-none font-semibold">
+                {count}
+              </span>
+            )}
             {active && (
               <span className="bg-foreground absolute inset-x-3 -bottom-[13px] h-0.5 rounded-full" />
             )}

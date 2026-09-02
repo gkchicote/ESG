@@ -150,6 +150,26 @@ export async function applyMigrations(exec: Exec): Promise<void> {
       where l.id = e.last_lesson_id and e.current_module_id is null`,
   );
 
+  // ---------------------------------------------------------------
+  //  Presença — quem está online agora, e fazendo o quê
+  // ---------------------------------------------------------------
+
+  // Duas colunas em `profiles` em vez de uma tabela própria: presença é um
+  // dado por pessoa, sempre sobrescrito, e nunca tem histórico para guardar.
+  //
+  // `presence_at` é a hora do último batimento do navegador (ver
+  // /api/presence). O estado só vale enquanto esse batimento estiver fresco —
+  // é a view do placar que aplica o vencimento, e não o app.
+  await exec(
+    `alter table profiles add column if not exists presence_status text not null default 'offline'`,
+  );
+  await exec(`alter table profiles add column if not exists presence_at timestamptz`);
+  await exec(`alter table profiles drop constraint if exists profiles_presence_status_check`);
+  await exec(
+    `alter table profiles add constraint profiles_presence_status_check
+       check (presence_status in ('available', 'busy', 'offline'))`,
+  );
+
   // Placar da aba "Progresso": nome, módulo atual e pontos, por curso.
   // Os pontos vêm de subconsulta em vez de join para não multiplicar linha
   // com o join de `modules` — e ficam limitados ao curso da matrícula.
@@ -182,7 +202,15 @@ export async function applyMigrations(exec: Exec): Promise<void> {
                 then p.streak_days
               else 0
             end as streak_days,
-            p.streak_best
+            p.streak_best,
+            -- Presença agora, para a turma ver em /progresso. Vale o estado
+            -- que o navegador avisou, enquanto o batimento estiver fresco:
+            -- quem fechou a aba (ou perdeu a rede) para de avisar e cai para
+            -- 'offline' sozinho, sem depender de despedida nenhuma.
+            case
+              when p.presence_at > now() - interval '2 minutes' then p.presence_status
+              else 'offline'
+            end as presence
        from enrollments e
        join profiles p on p.id = e.profile_id
        left join modules m on m.id = e.current_module_id

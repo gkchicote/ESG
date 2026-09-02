@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/app/logo";
 import { PlaylistProvider } from "@/components/app/playlist-provider";
+import { PresenceReporter } from "@/components/app/presence-status";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { TopNav } from "@/components/app/top-nav";
 import { UserMenu } from "@/components/app/user-menu";
@@ -15,6 +16,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <PlaylistProvider initialIds={playlistIds}>
+      {/* Avisa a turma de que esta pessoa está por aqui — e se está em aula. */}
+      <PresenceReporter />
       <div className="flex min-h-svh flex-col">
         <header className="bg-background/85 sticky top-0 z-40 border-b backdrop-blur-md">
           <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 px-5 sm:px-8">

@@ -18,7 +18,12 @@ create table if not exists profiles (
   streak_days     int not null default 0,
   streak_best     int not null default 0,
   -- Último dia (fuso de Brasília) em que uma aula foi concluída.
-  streak_last_day date
+  streak_last_day date,
+  -- Presença ao vivo (ver /api/presence): o estado que o navegador avisou e a
+  -- hora do aviso. Quem aplica o vencimento é a view do placar, na leitura.
+  presence_status text not null default 'offline'
+                  check (presence_status in ('available', 'busy', 'offline')),
+  presence_at     timestamptz
 );
 
 -- ---------- Conteúdo ------------------------------------------------

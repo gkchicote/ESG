@@ -566,6 +566,11 @@ export type ScoreboardRow = {
   streak_days: number;
   /** Maior sequência que a pessoa já teve — não zera nunca. */
   streak_best: number;
+  /**
+   * Presença agora: 'available', 'busy' ou 'offline'. Quem calcula é a view —
+   * o batimento vencido já chega como 'offline', sem o app comparar relógios.
+   */
+  presence: string;
 };
 
 /**
@@ -580,12 +585,26 @@ export type ScoreboardRow = {
 export function listScoreboard(courseId: string) {
   return query<ScoreboardRow>(
     `select profile_id, full_name, points, module_position, module_title,
-            last_accessed_at, streak_days, streak_best
+            last_accessed_at, streak_days, streak_best, presence
        from student_scoreboard
       where course_id = $1
       order by points desc, full_name asc`,
     [courseId],
   );
+}
+
+/**
+ * Batimento de presença — ver /api/presence.
+ *
+ * Guarda o estado e a hora crua; quem decide o que ainda vale é a view do
+ * placar. Assim o vencimento é uma regra só, no banco, e não uma comparação
+ * de relógios espalhada pelo app.
+ */
+export async function updatePresence(profileId: string, status: string) {
+  await query(`update profiles set presence_status = $2, presence_at = now() where id = $1`, [
+    profileId,
+    status,
+  ]);
 }
 
 /* ------------------------------------------------------------------ */

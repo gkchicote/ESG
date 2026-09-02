@@ -14,6 +14,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/app/empty-state";
+import { PRESENCE, PresenceMark, toPresence } from "@/components/app/presence-mark";
+import { PresenceRefresher } from "./presence-refresher";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Progresso" };
@@ -115,6 +117,16 @@ export default async function ProgressPage() {
       )}
 
       {/* Placar ------------------------------------------------------ */}
+      {/* Sem a legenda a bolinha vira enfeite: verde e vermelho não dizem
+          sozinhos o que significam. */}
+      <div className="text-muted-foreground mb-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 px-1">
+        <PresenceMark status="available" labelled />
+        <PresenceMark status="busy" labelled />
+        <PresenceMark status="offline" labelled />
+      </div>
+
+      <PresenceRefresher />
+
       <div className="overflow-hidden rounded-xl border">
         <div className="overflow-x-auto">
           <Table>
@@ -131,6 +143,7 @@ export default async function ProgressPage() {
               {rows.map((row) => {
                 const rank = rankOf(row.points);
                 const isMe = row.profile_id === session.sub;
+                const presence = toPresence(row.presence);
 
                 return (
                   <TableRow key={row.profile_id} className={cn(isMe && "bg-brand-soft/40")}>
@@ -153,11 +166,17 @@ export default async function ProgressPage() {
 
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar className="size-8 shrink-0">
-                          <AvatarFallback className="bg-brand-soft text-brand text-[11px] font-semibold">
-                            {initials(row.full_name)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <span className="relative shrink-0">
+                          <Avatar className="size-8">
+                            <AvatarFallback className="bg-brand-soft text-brand text-[11px] font-semibold">
+                              {initials(row.full_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <PresenceMark
+                            status={presence}
+                            className="ring-background absolute -right-0.5 -bottom-0.5 ring-2"
+                          />
+                        </span>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="truncate text-sm font-medium">{row.full_name}</p>
@@ -167,8 +186,13 @@ export default async function ProgressPage() {
                               </Badge>
                             )}
                           </div>
+                          {/* Quem está online agora não precisa de "há 2 dias":
+                              o estado ao vivo é a informação mais nova que
+                              existe sobre a pessoa. */}
                           <p className="text-muted-foreground text-xs">
-                            {formatLastAccess(row.last_accessed_at)}
+                            {presence === "offline"
+                              ? formatLastAccess(row.last_accessed_at)
+                              : PRESENCE[presence].hint}
                           </p>
                         </div>
                       </div>

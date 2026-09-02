@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth/jwt";
+import { getSession } from "@/lib/auth/session";
+import { updatePresence } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
 
@@ -15,6 +17,12 @@ export const runtime = "nodejs";
  * Só aceita POST: um GET permitiria deslogar alguém com um <img src> qualquer.
  */
 export async function POST() {
+  // Apaga a bolinha do placar na saída. Sem isto, quem sai pelo menu ficaria
+  // "disponível" para a turma até o batimento vencer — e o aviso de saída do
+  // navegador não é confiável aqui, porque compete com esta própria navegação.
+  const session = await getSession();
+  if (session) await updatePresence(session.sub, "offline");
+
   // 303: o navegador troca o POST por um GET ao seguir o Location.
   // Location relativo evita depender do host correto atrás do proxy.
   const response = new NextResponse(null, {

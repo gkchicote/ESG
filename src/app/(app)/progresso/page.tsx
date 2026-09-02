@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/app/empty-state";
 import { PRESENCE, PresenceMark, toPresence } from "@/components/app/presence-mark";
+import { PresenceDot, PresenceHint } from "@/components/app/presence-status";
 import { PresenceRefresher } from "./presence-refresher";
 import { cn } from "@/lib/utils";
 
@@ -172,10 +173,19 @@ export default async function ProgressPage() {
                               {initials(row.full_name)}
                             </AvatarFallback>
                           </Avatar>
-                          <PresenceMark
-                            status={presence}
-                            className="ring-background absolute -right-0.5 -bottom-0.5 ring-2"
-                          />
+                          {/* A própria linha não espera o servidor: quem
+                              chega vindo de uma aula chegaria aqui ainda
+                              marcado como "ocupado", porque a página é
+                              renderizada antes de o batimento novo aterrissar.
+                              No navegador o estado já é o de agora. */}
+                          {isMe ? (
+                            <PresenceDot className="ring-background absolute -right-0.5 -bottom-0.5 ring-2" />
+                          ) : (
+                            <PresenceMark
+                              status={presence}
+                              className="ring-background absolute -right-0.5 -bottom-0.5 ring-2"
+                            />
+                          )}
                         </span>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
@@ -190,9 +200,13 @@ export default async function ProgressPage() {
                               o estado ao vivo é a informação mais nova que
                               existe sobre a pessoa. */}
                           <p className="text-muted-foreground text-xs">
-                            {presence === "offline"
-                              ? formatLastAccess(row.last_accessed_at)
-                              : PRESENCE[presence].hint}
+                            {isMe ? (
+                              <PresenceHint />
+                            ) : presence === "offline" ? (
+                              formatLastAccess(row.last_accessed_at)
+                            ) : (
+                              PRESENCE[presence].hint
+                            )}
                           </p>
                         </div>
                       </div>

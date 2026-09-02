@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { PresenceMark, type Presence } from "@/components/app/presence-mark";
+import { PRESENCE, PresenceMark, type Presence } from "@/components/app/presence-mark";
 
 /** De quanto em quanto tempo o navegador avisa que ainda está aí. */
 const HEARTBEAT_MS = 30_000;
@@ -44,6 +44,15 @@ export function PresenceDot({ className }: { className?: string }) {
 /** Bolinha com o nome do estado — usado dentro do menu da conta. */
 export function PresenceBadge({ className }: { className?: string }) {
   return <PresenceMark status={usePresence()} className={className} labelled />;
+}
+
+/**
+ * O estado por extenso, ao vivo. Existe para a própria linha de quem está
+ * olhando o placar: o servidor renderizou a página com o batimento anterior,
+ * então só o navegador sabe o estado deste instante.
+ */
+export function PresenceHint({ className }: { className?: string }) {
+  return <span className={className}>{PRESENCE[usePresence()].hint}</span>;
 }
 
 /**
